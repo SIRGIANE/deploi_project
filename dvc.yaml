@@ -1,0 +1,51 @@
+stages:
+  prepare:
+    cmd: python src/data_pipeline.py --prepare
+    deps:
+      - data/raw/GlobalTemperatures.csv
+    outs:
+      - data/processed/train.csv
+      - data/processed/test.csv
+    metrics:
+      - data/processed/data_stats.json:
+          cache: false
+
+  featurize:
+    cmd: python src/data_pipeline.py --featurize
+    deps:
+      - data/processed/train.csv
+      - data/processed/test.csv
+    outs:
+      - data/features/X_train.npy
+      - data/features/X_test.npy
+      - data/features/y_train.npy
+      - data/features/y_test.npy
+
+  train:
+    cmd: python src/train_model.py
+    deps:
+      - data/features/X_train.npy
+      - data/features/X_test.npy
+      - data/features/y_train.npy
+      - data/features/y_test.npy
+    outs:
+      - models/rf_model.pkl
+      - models/lstm_model.h5
+      - models/scaler.pkl
+    metrics:
+      - metrics.json:
+          cache: false
+    plots:
+      - plots/predictions_vs_actual.csv:
+          x: actual
+          y: predicted
+
+  evaluate:
+    cmd: python src/evaluate_model.py
+    deps:
+      - models/rf_model.pkl
+      - models/lstm_model.h5
+      - data/features/X_test.npy
+    metrics:
+      - evaluation_metrics.json:
+          cache: false

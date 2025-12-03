@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /workspace
+
+RUN pip install --upgrade pip
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+RUN pip install jupyterlab matplotlib seaborn plotly pandas scikit-learn scipy mlflow kaggle
+
+EXPOSE 8888 5000
+
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]

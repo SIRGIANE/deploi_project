@@ -1,0 +1,80 @@
+name: Model Training & Evaluation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/train_model.py'
+      - 'params.yaml'
+      - 'data/**'
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly retraining
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install DVC
+        run: |
+          pip install dvc dvc-s3
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Pull data with DVC
+        run: |
+          dvc pull || true
+      
+      - name: Train models
+        run: |
+          python src/train_model.py
+      
+      - name: Evaluate models
+        run: |
+          python src/evaluate_model.py
+      
+      - name: Register best model
+        run: |
+          python src/register_model.py
+      
+      - name: Push data changes
+        run: |
+          dvc add data/
+          git add data/.gitignore
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -m "Update data artifacts [skip ci]" || true
+          git push
+      
+      - name: Upload metrics
+        uses: actions/upload-artifact@v3
+        with:
+          name: model-metrics
+          path: model_metrics_comparison.json
+      
+      - name: Upload model card
+        uses: actions/upload-artifact@v3
+        with:
+          name: model-card
+          path: reports/model_card.md
+
+  notify:
+    needs: train
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+      - name: Send notification
+        run: |
+          echo "❌ Model training failed!"

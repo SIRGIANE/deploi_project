@@ -1,0 +1,67 @@
+# DVC
+/dvc-storage/
+.dvc/tmp/
+*.dvc
+
+# MLflow
+/mlruns/
+.mlflow/
+
+# Models
+/models/*.pkl
+/models/*.h5
+/models/*.joblib
+
+# Data
+/data/raw/
+/data/processed/
+/data/features/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Environment
+.env
+.env.local
+venv/
+env/
+climate-env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+logs/
+*.log
+
+# Temporary
+*.tmp
+*.temp
