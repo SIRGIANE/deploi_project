@@ -295,6 +295,107 @@ def fetch_current_weather() -> pd.DataFrame:
         logger.error(f"❌ Erreur lors de la récupération des données actuelles: {e}")
         raise
 
+def fetch_weather_history(days: int = 7) -> pd.DataFrame:
+    """
+    Récupère les données météo historiques pour les derniers jours
+    """
+    from datetime import timedelta
+    
+    logger.info(f"🌐 Récupération des données météo des {days} derniers jours...")
+    
+    try:
+        # Calculer les dates
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days-1)
+        
+        # Paramètres pour l'archive
+        params = {
+            "latitude": Config.MARRAKECH_LAT,
+            "longitude": Config.MARRAKECH_LON,
+            "start_date": start_date.strftime('%Y-%m-%d'),
+            "end_date": end_date.strftime('%Y-%m-%d'),
+            "hourly": [
+                "temperature_2m", 
+                "apparent_temperature", 
+                "relative_humidity_2m", 
+                "precipitation", 
+                "rain", 
+                "snowfall", 
+                "weathercode", 
+                "windspeed_10m", 
+                "windgusts_10m", 
+                "winddirection_10m", 
+                "shortwave_radiation", 
+                "et0_fao_evapotranspiration"
+            ],
+            "timezone": "Africa/Casablanca"
+        }
+        
+        # Requête API archive
+        response = requests.get(Config.WEATHER_API_BASE_URL, params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Conversion en DataFrame
+        df = pd.DataFrame({
+            'time': data['hourly']['time'],
+            'temperature_2m': data['hourly']['temperature_2m'],
+            'apparent_temperature': data['hourly']['apparent_temperature'],
+            'relative_humidity_2m': data['hourly']['relative_humidity_2m'],
+            'precipitation': data['hourly']['precipitation'],
+            'rain': data['hourly']['rain'],
+            'snowfall': data['hourly']['snowfall'],
+            'weathercode': data['hourly']['weathercode'],
+            'windspeed_10m': data['hourly']['windspeed_10m'],
+            'windgusts_10m': data['hourly']['windgusts_10m'],
+            'winddirection_10m': data['hourly']['winddirection_10m'],
+            'shortwave_radiation': data['hourly']['shortwave_radiation'],
+            'et0_fao_evapotranspiration': data['hourly']['et0_fao_evapotranspiration']
+        })
+        
+        # Conversion de la colonne time
+        df['datetime'] = pd.to_datetime(df['time'])
+        df['date'] = df['datetime'].dt.date
+        
+        # Agrégation quotidienne
+        daily_df = df.groupby('date').agg(
+            temperature_2m_max=('temperature_2m', 'max'),
+            temperature_2m_min=('temperature_2m', 'min'),
+            temperature_2m_mean=('temperature_2m', 'mean'),
+            apparent_temperature_max=('apparent_temperature', 'max'),
+            apparent_temperature_min=('apparent_temperature', 'min'),
+            relative_humidity_2m=('relative_humidity_2m', 'mean'),
+            precipitation_sum=('precipitation', 'sum'),
+            rain_sum=('rain', 'sum'),
+            snowfall_sum=('snowfall', 'sum'),
+            precipitation_hours=('precipitation', lambda x: (x > 0).sum()),
+            windspeed_10m_max=('windspeed_10m', 'max'),
+            windgusts_10m_max=('windgusts_10m', 'max'),
+            winddirection_10m_dominant=('winddirection_10m', lambda x: x.mode().iloc[0] if not x.mode().empty else x.mean()),
+            shortwave_radiation_sum=('shortwave_radiation', 'sum'),
+            et0_fao_evapotranspiration=('et0_fao_evapotranspiration', 'sum'),
+            weathercode=('weathercode', lambda x: x.mode().iloc[0] if not x.mode().empty else x.iloc[0])
+        ).reset_index()
+        
+        # Ajouter les colonnes temporelles
+        daily_df['datetime'] = pd.to_datetime(daily_df['date'])
+        daily_df['year'] = daily_df['datetime'].dt.year
+        daily_df['month'] = daily_df['datetime'].dt.month
+        daily_df['day'] = daily_df['datetime'].dt.day
+        daily_df['day_of_year'] = daily_df['datetime'].dt.dayofyear
+        daily_df['season'] = daily_df['month'].apply(lambda m: 1 if m in [12,1,2] else 2 if m in [3,4,5] else 3 if m in [6,7,8] else 4)
+        
+        # Renommer date en time
+        daily_df = daily_df.rename(columns={'date': 'time'})
+        
+        logger.info(f"✅ Données historiques récupérées: {len(daily_df)} jours")
+        return daily_df
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la récupération des données historiques: {e}")
+        raise
+
 # Configuration de l'application
 app = FastAPI(
     title=Config.API_TITLE,
@@ -569,10 +670,11 @@ async def web_predict(
 async def dashboard(request: Request):
     """Tableau de bord avec météo actuelle et prédictions"""
     try:
-        # Récupérer les données actuelles
-        current_weather = fetch_current_weather()
+        # Récupérer les données des 7 derniers jours
+        weather_history = fetch_weather_history(7)
         
-        # Prendre les données d'aujourd'hui
+        # Récupérer les données actuelles pour aujourd'hui
+        current_weather = fetch_current_weather()
         today = datetime.now().date()
         today_data = current_weather[current_weather['time'] == today]
         
@@ -584,7 +686,6 @@ async def dashboard(request: Request):
         # Préparer les features pour la prédiction
         features = today_data.to_dict()
         features.pop('time', None)
-        # Keep 'datetime' for feature engineering
         
         # Transformer et prédire
         temp_df = historical_df.copy()
@@ -595,40 +696,35 @@ async def dashboard(request: Request):
             last_features = model_manager.pipeline.scaler.transform(last_features)
         prediction = model_manager.predict('random_forest', last_features)
         
-        # Générer le graphique
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(figsize=(12, 6))
-        
-        # Données historiques récentes
-        recent_history = historical_df.tail(30)  # 30 derniers jours
-        ax.plot(pd.to_datetime(recent_history['datetime']), recent_history['temperature_2m_mean'], 
-                label='Historical Mean Temp', color='blue')
-        
-        # Aujourd'hui
-        ax.axvline(x=pd.to_datetime(today), color='green', linestyle='--', label='Today')
-        ax.scatter(pd.to_datetime(today), today_data['temperature_2m_mean'], 
-                  color='orange', s=100, label=f'Today Forecast: {today_data["temperature_2m_mean"]:.1f}°C')
-        
-        # Prédiction du modèle
-        predicted_temp = prediction['predictions'].get('temperature_2m_mean', today_data['temperature_2m_mean'])
-        ax.scatter(pd.to_datetime(today), predicted_temp, 
-                  color='red', s=100, marker='x', label=f'Model Prediction: {predicted_temp:.1f}°C')
-        
-        ax.set_xlabel('Date')
-        ax.set_ylabel('Temperature (°C)')
-        ax.set_title('Climate Dashboard: Historical Data, Today\'s Forecast & Model Prediction')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        
-        plot_path = 'src/static/dashboard_plot.png'
-        fig.savefig(plot_path)
-        plt.close()
+        # Préparer les données pour les graphiques
+        chart_data = {
+            'dates': [row['time'].strftime('%Y-%m-%d') for row in weather_history.to_dict('records')],
+            'temperature_mean': [round(row['temperature_2m_mean'], 1) for row in weather_history.to_dict('records')],
+            'temperature_max': [round(row['temperature_2m_max'], 1) for row in weather_history.to_dict('records')],
+            'temperature_min': [round(row['temperature_2m_min'], 1) for row in weather_history.to_dict('records')],
+            'humidity': [round(row['relative_humidity_2m'], 1) for row in weather_history.to_dict('records')],
+            'precipitation': [round(row['precipitation_sum'], 1) for row in weather_history.to_dict('records')],
+            'windspeed': [round(row['windspeed_10m_max'], 1) for row in weather_history.to_dict('records')],
+            'today_forecast': {
+                'temperature_mean': round(today_data['temperature_2m_mean'], 1),
+                'temperature_max': round(today_data['temperature_2m_max'], 1),
+                'temperature_min': round(today_data['temperature_2m_min'], 1),
+                'humidity': round(today_data['relative_humidity_2m'], 1),
+                'precipitation': round(today_data['precipitation_sum'], 1),
+                'windspeed': round(today_data['windspeed_10m_max'], 1)
+            },
+            'prediction': {
+                'temperature_mean': round(prediction['predictions'].get('temperature_2m_mean', 20.0), 1),
+                'temperature_max': round(prediction['predictions'].get('temperature_2m_max', 25.0), 1),
+                'temperature_min': round(prediction['predictions'].get('temperature_2m_min', 15.0), 1)
+            }
+        }
         
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "today_data": today_data.to_dict(),
             "prediction": prediction['predictions'],
-            "plot_url": "/static/dashboard_plot.png",
+            "chart_data": chart_data,
             "current_date": today.strftime("%Y-%m-%d")
         })
         
