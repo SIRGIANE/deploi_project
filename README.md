@@ -272,18 +272,5 @@ Ce projet utilise désormais le dataset **Marrakech Weather 2018-2023** au lieu 
 - `src/marrakech_data_loader.py` - Nouveau loader créé
 - `src/data_pipeline.py` - Utilisation du nouveau loader
 
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
-
-## 📄 Licence
-
-MIT License
-
-## 👥 Auteurs
-
-Climate MLOps Team
-
----
 
 **Note** : Pour toute question, consultez la documentation dans `/docs` ou ouvrez une issue.
