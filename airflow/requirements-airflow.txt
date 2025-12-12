@@ -1,0 +1,29 @@
+# Airflow specific requirements
+apache-airflow-providers-postgres==5.7.1
+apache-airflow-providers-celery==3.4.1
+apache-airflow-providers-redis==3.4.0
+apache-airflow-providers-http==4.6.0
+apache-airflow-providers-github==2.4.0
+apache-airflow-providers-docker==3.7.2
+psycopg2-binary==2.9.7
+celery==5.3.1
+redis==4.6.0
+
+# DVC integration
+dvc[s3]==3.30.3
+# dvc-data==2.19.0  <-- Removed to resolve conflict with dvc 3.30.3
+
+# MLOps tools
+mlflow==2.8.0
+optuna==3.4.0
+evidently>=0.4.16
+great-expectations>=0.18.0
+
+# GitHub integration
+PyGithub==1.59.1
+gitpython==3.1.40
+
+# Additional utilities
+requests==2.31.0
+python-dotenv==1.0.0
+pydantic==2.4.2

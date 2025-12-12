@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Result</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { max-width: 800px; margin: 0 auto; }
+        .prediction { background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        img { max-width: 100%; height: auto; }
+        a { display: inline-block; margin-top: 20px; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px; }
+        a:hover { background-color: #0b7dda; }
+    </style>
+</head>
+<body>
+    <div class="result">
+        <h1>Prediction Result</h1>
+        <div class="prediction">
+            <h2>Predicted Temperatures</h2>
+            <p><strong>Max Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_max', 25.0)) }} °C</p>
+            <p><strong>Min Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_min', 15.0)) }} °C</p>
+            <p><strong>Mean Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_mean', 20.0)) }} °C</p>
+        </div>
+        <h2>Temperature Curve</h2>
+        <img src="{{ plot_url }}" alt="Temperature Curve">
+        <br>
+        <a href="/web">Make Another Prediction</a>
+    </div>
+</body>
+</html>

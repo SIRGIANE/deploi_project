@@ -1,51 +1,75 @@
 stages:
-  prepare:
-    cmd: python src/data_pipeline.py --prepare
+  # ÉTAPE 1: Chargement des données locales → data/raw/
+  download_raw:
+    cmd: python -c "from src.data_pipeline import WeatherDataPipeline; p = WeatherDataPipeline(); p.step1_download_raw_data()"
     deps:
-      - data/raw/GlobalTemperatures.csv
+      - src/data_pipeline.py
+      - src/marrakech_data_loader.py
+      - marrakech_weather_2018_2023_final.csv
     outs:
-      - data/processed/train.csv
-      - data/processed/test.csv
-    metrics:
-      - data/processed/data_stats.json:
-          cache: false
+      - data/raw/weather_data_raw.csv
 
-  featurize:
-    cmd: python src/data_pipeline.py --featurize
+  # ÉTAPE 2: Preprocessing des données → data/processed/
+  preprocess:
+    cmd: python -c "from src.data_pipeline import WeatherDataPipeline; p = WeatherDataPipeline(); p.step2_preprocess_data()"
     deps:
-      - data/processed/train.csv
-      - data/processed/test.csv
+      - src/data_pipeline.py
+      - src/marrakech_data_loader.py
+      - data/raw/weather_data_raw.csv
+    outs:
+      - data/processed/weather_data_processed.csv
+
+  # ÉTAPE 3: Création des features → data/features/
+  create_features:
+    cmd: python -c "from src.data_pipeline import WeatherDataPipeline; p = WeatherDataPipeline(); p.step3_create_features()"
+    deps:
+      - src/data_pipeline.py
+      - src/marrakech_data_loader.py
+      - data/processed/weather_data_processed.csv
+    outs:
+      - data/features/weather_data_features.csv
+
+  # Préparation finale pour ML (génère les matrices numpy)
+  prepare_ml_data:
+    cmd: python -c "from src.data_pipeline import WeatherDataPipeline; p = WeatherDataPipeline(); p.prepare_ml_data()"
+    deps:
+      - src/data_pipeline.py
+      - data/features/weather_data_features.csv
     outs:
       - data/features/X_train.npy
       - data/features/X_test.npy
       - data/features/y_train.npy
       - data/features/y_test.npy
+      - models/data_pipeline.joblib
 
+  # Entraînement des modèles
   train:
     cmd: python src/train_model.py
     deps:
+      - src/train_model.py
+      - src/data_pipeline.py
       - data/features/X_train.npy
       - data/features/X_test.npy
       - data/features/y_train.npy
       - data/features/y_test.npy
+    params:
+      - params.yaml:
+          - models.random_forest
     outs:
       - models/rf_model.pkl
-      - models/lstm_model.h5
       - models/scaler.pkl
     metrics:
-      - metrics.json:
+      - results/weather_training_results.json:
           cache: false
-    plots:
-      - plots/predictions_vs_actual.csv:
-          x: actual
-          y: predicted
 
+  # Évaluation des modèles
   evaluate:
     cmd: python src/evaluate_model.py
     deps:
+      - src/evaluate_model.py
       - models/rf_model.pkl
-      - models/lstm_model.h5
       - data/features/X_test.npy
+      - data/features/y_test.npy
     metrics:
-      - evaluation_metrics.json:
+      - reports/model_comparison/evaluation_metrics.json:
           cache: false

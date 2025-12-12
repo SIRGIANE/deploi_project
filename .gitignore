@@ -1,41 +1,60 @@
-# DVC
-/dvc-storage/
-.dvc/tmp/
-*.dvc
-
-# MLflow
-/mlruns/
-.mlflow/
-
-# Models
-/models/*.pkl
-/models/*.h5
-/models/*.joblib
-
-# Data
-/data/raw/
-/data/processed/
-/data/features/
-
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.so
 *.egg-info/
-dist/
-build/
-.Python
+
+# Virtual environments
+.env
+.venv/
+venv/
+ENV/
+climate-env/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb_checkpoints
+*.ipynb.tmp
 
-# Environment
-.env
-.env.local
-venv/
-env/
-climate-env/
+# Logs and temp
+logs/
+*.log
+*.tmp
+*.cache/
+
+# MLflow local runs (keep if you use remote tracking)
+mlruns/
+
+# Reports (generated)
+reports/
+code_quality_report.md
+bandit_report.json
+mypy.ini
+
+# DVC
+.dvc/
+.dvc/cache/
+**/*.dvc
+
+# Airflow
+airflow/logs/
+
+# Data (raw/local; DVC should manage datasets)
+# Uncomment if you rely fully on DVC remotes
+# data/raw/
+# data/processed/
+# data/features/
+
+# Docker
+*.pid
+*.pid.lock
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 
 # IDE
 .vscode/
@@ -44,24 +63,8 @@ climate-env/
 *.swo
 *~
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
-
-# Logs
-logs/
-*.log
-
-# Temporary
-*.tmp
-*.temp

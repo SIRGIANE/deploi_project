@@ -224,21 +224,80 @@ def main():
     """Fonction principale"""
     logger.info("🚀 Démarrage de l'évaluation des modèles")
     
-    evaluator = ModelEvaluator()
-    
-    # Exemple de comparaison (remplacer avec vos vraies données)
-    # models_results = [
-    #     ('RandomForest', y_test_true, y_test_pred_rf),
-    #     ('LSTM', y_test_true, y_test_pred_lstm),
-    #     ('ARIMA', y_test_true, y_test_pred_arima)
-    # ]
-    
-    # metrics_df = evaluator.compare_models(models_results)
-    # evaluator.generate_comparison_report(metrics_df)
-    # evaluator.plot_model_comparison(metrics_df)
-    # evaluator.log_to_mlflow(metrics_df)
-    
-    logger.info("✅ Évaluation terminée")
+    try:
+        # Chemins des fichiers
+        model_path = Path('models/rf_model.pkl')
+        X_test_path = Path('data/features/X_test.npy')
+        y_test_path = Path('data/features/y_test.npy')
+        scaler_path = Path('models/scaler.pkl')
+        output_path = Path('reports/model_comparison/evaluation_metrics.json')
+        
+        # Vérification de l'existence des fichiers
+        if not all(p.exists() for p in [model_path, X_test_path, y_test_path]):
+            logger.error("❌ Fichiers manquants pour l'évaluation")
+            sys.exit(1)
+            
+        # Chargement des données et du modèle
+        import joblib
+        model = joblib.load(model_path)
+        X_test = np.load(X_test_path)
+        y_test = np.load(y_test_path)
+        
+        # Chargement du scaler si nécessaire (si le modèle attend des données non scalées mais que X_test est scalé, ou inversement)
+        # Dans ce pipeline, X_test est déjà scalé lors de la préparation
+        
+        logger.info(f"✅ Modèle et données chargés. Test shape: {X_test.shape}")
+        
+        # Prédictions
+        y_pred = model.predict(X_test)
+        
+        # Instanciation de l'évaluateur
+        evaluator = ModelEvaluator()
+        
+        # Calcul des métriques
+        # Note: y_test peut être multi-output
+        metrics_list = []
+        
+        # Si y_test est 2D
+        if y_test.ndim > 1 and y_test.shape[1] > 1:
+            for i in range(y_test.shape[1]):
+                target_metrics = evaluator.compute_advanced_metrics(
+                    y_test[:, i], 
+                    y_pred[:, i] if y_pred.ndim > 1 else y_pred, 
+                    f"RandomForest_Target_{i+1}"
+                )
+                metrics_list.append(target_metrics)
+        else:
+            metrics = evaluator.compute_advanced_metrics(y_test, y_pred, "RandomForest")
+            metrics_list.append(metrics)
+            
+        metrics_df = pd.DataFrame(metrics_list)
+        
+        # Sauvegarde des métriques pour DVC
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Format simple pour DVC metrics
+        dvc_metrics = {
+            "avg_rmse": float(metrics_df['RMSE'].mean()),
+            "avg_mae": float(metrics_df['MAE'].mean()),
+            "avg_r2": float(metrics_df['R²'].mean())
+        }
+        
+        with open(output_path, 'w') as f:
+            json.dump(dvc_metrics, f, indent=2)
+            
+        # Génération du rapport complet
+        evaluator.generate_comparison_report(metrics_df)
+        evaluator.plot_model_comparison(metrics_df)
+        
+        # Log MLflow
+        evaluator.log_to_mlflow(metrics_df)
+        
+        logger.info(f"✅ Évaluation terminée. Métriques sauvegardées dans {output_path}")
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de l'évaluation: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

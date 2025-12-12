@@ -1,194 +1,151 @@
 """
-Tests unitaires pour les modèles ML
+Tests unitaires pour le projet Climate MLOps
+Tests pour les pipelines de données, modèles et API
 """
 
 import pytest
-import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+import numpy as np
+from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
+from pathlib import Path
+import tempfile
+import os
+import sys
 
+# Imports des modules à tester
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-class TestModelTraining:
-    """Tests pour l'entraînement des modèles"""
+from src.data_pipeline import WeatherDataPipeline
+from src.data_validation import DataQualityValidator
+from src.marrakech_data_loader import MarrakechWeatherDataLoader
+from src.config import Config
+from src.train_model import WeatherModelTrainer, MetricsCalculator
+
+class TestDataQualityValidator:
+    """Tests pour le validateur de données"""
     
     @pytest.fixture
-    def sample_dataset(self):
-        """Créer un dataset d'exemple"""
-        np.random.seed(42)
-        n_samples = 100
-        n_features = 20
-        
-        X = np.random.randn(n_samples, n_features)
-        y = X[:, 0] * 2 + X[:, 1] * 1.5 + np.random.randn(n_samples) * 0.5
-        
-        return X, y
-    
-    def test_model_initialization(self, sample_dataset):
-        """Test de l'initialisation du modèle"""
-        X, y = sample_dataset
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        assert model is not None
-        assert model.n_estimators == 10
-    
-    def test_model_training(self, sample_dataset):
-        """Test de l'entraînement du modèle"""
-        X, y = sample_dataset
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        model.fit(X, y)
-        
-        # Vérifier que le modèle a été entraîné
-        assert hasattr(model, 'estimators_')
-        assert len(model.estimators_) == 10
-    
-    def test_model_prediction(self, sample_dataset):
-        """Test de la prédiction du modèle"""
-        X, y = sample_dataset
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        model.fit(X, y)
-        
-        predictions = model.predict(X)
-        
-        assert predictions.shape == y.shape
-        assert not np.isnan(predictions).any()
-    
-    def test_model_performance(self, sample_dataset):
-        """Test des performances du modèle"""
-        X, y = sample_dataset
-        
-        model = RandomForestRegressor(n_estimators=50, random_state=42)
-        model.fit(X, y)
-        
-        predictions = model.predict(X)
-        
-        rmse = np.sqrt(mean_squared_error(y, predictions))
-        r2 = r2_score(y, predictions)
-        
-        # Le modèle devrait avoir des performances raisonnables
-        assert r2 > 0.5
-        assert rmse < 10
-    
-    def test_feature_importance(self, sample_dataset):
-        """Test de l'importance des features"""
-        X, y = sample_dataset
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        model.fit(X, y)
-        
-        importances = model.feature_importances_
-        
-        assert importances.shape == (20,)
-        assert np.isclose(importances.sum(), 1.0)
-    
-    def test_model_scalability(self):
-        """Test de la scalabilité du modèle"""
-        # Avec un dataset plus grand
-        X_large = np.random.randn(1000, 20)
-        y_large = np.random.randn(1000)
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        model.fit(X_large, y_large)
-        
-        predictions = model.predict(X_large)
-        assert predictions.shape == y_large.shape
+    def validator(self):
+        return DataQualityValidator()
 
+    @pytest.fixture
+    def valid_dataframe(self):
+        """DataFrame valide pour les tests"""
+        dates = pd.date_range('2018-01-01', periods=100, freq='D')
+        return pd.DataFrame({
+            'datetime': dates,
+            'temperature_2m_mean': np.random.normal(20, 5, 100),
+            'temperature_2m_max': np.random.normal(25, 5, 100),
+            'temperature_2m_min': np.random.normal(15, 5, 100)
+        })
+    
+    def test_validate_structure(self, validator, valid_dataframe):
+        """Test validation structure"""
+        results = validator.validate_basic_structure(valid_dataframe)
+        assert results['row_count']['result'] is True
+        assert results['required_columns']['result'] is True
 
-class TestModelValidation:
-    """Tests de validation des modèles"""
+    def test_validate_temperature(self, validator, valid_dataframe):
+        """Test validation température"""
+        results = validator.validate_temperature_data(valid_dataframe)
+        assert results['temperature_2m_mean']['result'] is True
+
+class TestMarrakechLoader:
+    """Tests pour le loader de données"""
+    
+    def test_feature_creation(self, tmp_path):
+        """Test de création des features"""
+        # Create a dummy file
+        d = tmp_path / "dummy.csv"
+        d.write_text("col1,col2")
+        
+        loader = MarrakechWeatherDataLoader(str(d))
+        
+        # Create dummy processed data
+        dates = pd.date_range('2018-01-01', periods=50, freq='D')
+        df = pd.DataFrame({
+            'datetime': dates,
+            'temperature_2m_mean': np.random.normal(20, 5, 50)
+        })
+        
+        features = loader.create_weather_features(df)
+        
+        assert 'Year' in features.columns
+        assert 'Month' in features.columns
+        assert 'Temp_lag_1' in features.columns
+
+class TestWeatherDataPipeline:
+    """Tests pour le pipeline de données climatiques"""
     
     @pytest.fixture
-    def trained_model(self):
-        """Créer un modèle entraîné"""
-        np.random.seed(42)
-        X = np.random.randn(100, 20)
-        y = np.random.randn(100)
-        
-        model = RandomForestRegressor(n_estimators=10, random_state=42)
-        model.fit(X, y)
-        
-        return model, X, y
+    def pipeline(self, tmp_path):
+        """Instance du pipeline pour les tests"""
+        # Create a dummy file
+        d = tmp_path / "dummy.csv"
+        d.write_text("col1,col2")
+        return WeatherDataPipeline(data_file=str(d))
     
-    def test_cross_validation(self, trained_model):
-        """Test de la validation croisée"""
-        from sklearn.model_selection import cross_val_score
+    @patch('src.marrakech_data_loader.MarrakechWeatherDataLoader.load_weather_data')
+    def test_step1_download(self, mock_load, pipeline):
+        """Test étape 1"""
+        mock_df = pd.DataFrame({'col': [1, 2]})
+        mock_load.return_value = mock_df
         
-        model, X, y = trained_model
-        
-        scores = cross_val_score(model, X, y, cv=5, scoring='r2')
-        
-        assert len(scores) == 5
-        assert all(s < 1.0 for s in scores)
-    
-    def test_model_overfitting(self, trained_model):
-        """Test de détection du surapprentissage"""
-        model, X_train, y_train = trained_model
-        
-        # Créer un dataset de test
-        X_test = np.random.randn(50, 20)
-        y_test = np.random.randn(50)
-        
-        train_r2 = model.score(X_train, y_train)
-        test_r2 = model.score(X_test, y_test)
-        
-        # Le modèle ne devrait pas être drastiquement overfitting
-        assert train_r2 - test_r2 < 0.5
-    
-    def test_model_stability(self):
-        """Test de la stabilité du modèle"""
-        np.random.seed(42)
-        
-        # Entraîner plusieurs fois avec les mêmes données
-        predictions_list = []
-        
-        for _ in range(3):
-            X = np.random.randn(100, 20)
-            y = np.random.randn(100)
+        with patch('pandas.DataFrame.to_csv'):
+            result = pipeline.step1_download_raw_data()
+            assert len(result) == 2
             
-            model = RandomForestRegressor(n_estimators=10, random_state=42)
-            model.fit(X, y)
-            
-            pred = model.predict(X)
-            predictions_list.append(pred)
+    @patch('src.marrakech_data_loader.MarrakechWeatherDataLoader.preprocess_weather_data')
+    def test_step2_preprocess(self, mock_process, pipeline):
+        """Test étape 2"""
+        mock_df = pd.DataFrame({'col': [1, 2]})
+        mock_process.return_value = mock_df
         
-        # Les prédictions devraient être identiques (même seed)
-        assert np.allclose(predictions_list[0], predictions_list[1])
+        with patch('pandas.DataFrame.to_csv'):
+            # Mock reading raw file or pass df
+            result = pipeline.step2_preprocess_data(mock_df)
+            assert len(result) == 2
 
-
-class TestModelComparison:
-    """Tests de comparaison entre modèles"""
+class TestMetricsCalculator:
+    """Tests pour le calculateur de métriques"""
     
-    @pytest.fixture
-    def test_data(self):
-        """Créer des données de test"""
-        np.random.seed(42)
-        X = np.random.randn(100, 20)
-        y = np.random.randn(100)
-        return X, y
-    
-    def test_multiple_models_comparison(self, test_data):
-        """Comparer plusieurs modèles"""
-        X, y = test_data
+    def test_calculate_metrics(self):
+        """Test du calcul des métriques"""
+        y_true = np.array([[10], [20], [30]])
+        y_pred = np.array([[11], [19], [32]])
+        target_names = ['temp']
         
-        models = {
-            'RF_10': RandomForestRegressor(n_estimators=10, random_state=42),
-            'RF_50': RandomForestRegressor(n_estimators=50, random_state=42),
-            'RF_100': RandomForestRegressor(n_estimators=100, random_state=42),
+        metrics = MetricsCalculator.calculate_multi_target_metrics(
+            y_true, y_pred, y_true, y_pred, target_names
+        )
+        
+        assert 'avg_test_rmse' in metrics
+        assert metrics['avg_test_rmse'] > 0
+
+class TestWeatherModelTrainer:
+    """Tests pour l'entraîneur de modèle"""
+    
+    @patch('src.data_pipeline.WeatherDataPipeline.run_full_pipeline')
+    def test_prepare_data(self, mock_pipeline, tmp_path):
+        """Test préparation des données"""
+        # Mock pipeline results
+        X = np.random.rand(10, 5)
+        y = np.random.rand(10, 1)
+        mock_pipeline.return_value = {
+            'ml_data': {
+                'X_train': X, 'X_test': X,
+                'y_train': y, 'y_test': y,
+                'feature_names': ['f1', 'f2', 'f3', 'f4', 'f5'],
+                'target_names': ['t1']
+            }
         }
         
-        results = {}
+        trainer = WeatherModelTrainer()
+        trainer.prepare_data()
         
-        for name, model in models.items():
-            model.fit(X, y)
-            r2 = model.score(X, y)
-            results[name] = r2
-        
-        # Vérifier que tous les modèles donnent des scores raisonnables
-        assert all(v > 0 for v in results.values())
-
+        assert trainer.X_train is not None
+        assert trainer.X_train.shape == (10, 5)
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    pytest.main([__file__])

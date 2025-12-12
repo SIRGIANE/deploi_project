@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climate Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .dashboard { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .current-weather, .prediction { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .current-weather h2, .prediction h2 { color: #333; }
+        .weather-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .weather-item { background-color: #f9f9f9; padding: 10px; border-radius: 5px; text-align: center; }
+        .weather-item strong { display: block; font-size: 1.2em; color: #007bff; }
+        .chart { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        img { max-width: 100%; height: auto; }
+        .error { color: red; text-align: center; padding: 20px; }
+        .nav { text-align: center; margin-bottom: 20px; }
+        .nav a { margin: 0 10px; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+        .nav a:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🌤️ Climate Dashboard</h1>
+            <p>Current weather and model predictions for {{ current_date }}</p>
+        </div>
+
+        <div class="nav">
+            <a href="/web">Manual Prediction</a>
+            <a href="/dashboard">Refresh Dashboard</a>
+        </div>
+
+        {% if error %}
+        <div class="error">
+            <h2>Error</h2>
+            <p>{{ error }}</p>
+        </div>
+        {% else %}
+        <div class="current-weather">
+            <h2>Today's Weather Forecast</h2>
+            <div class="weather-grid">
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['temperature_2m_max']) }}°C</strong>
+                    Max Temperature
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['temperature_2m_min']) }}°C</strong>
+                    Min Temperature
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['temperature_2m_mean']) }}°C</strong>
+                    Mean Temperature
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['relative_humidity_2m']) }}%</strong>
+                    Humidity
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['precipitation_sum']) }} mm</strong>
+                    Precipitation
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(today_data['windspeed_10m_max']) }} km/h</strong>
+                    Wind Speed
+                </div>
+                <div class="weather-item">
+                    <strong>{{ today_data['weathercode'] }}</strong>
+                    Weather Code
+                </div>
+            </div>
+        </div>
+
+        <div class="prediction">
+            <h2>Model Prediction</h2>
+            <div class="weather-grid">
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(prediction.get('temperature_2m_max', 25.0)) }}°C</strong>
+                    Predicted Max Temp
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(prediction.get('temperature_2m_min', 15.0)) }}°C</strong>
+                    Predicted Min Temp
+                </div>
+                <div class="weather-item">
+                    <strong>{{ "%.1f"|format(prediction.get('temperature_2m_mean', 20.0)) }}°C</strong>
+                    Predicted Mean Temp
+                </div>
+            </div>
+        </div>
+
+        <div class="chart">
+            <h2>Temperature Trends</h2>
+            <img src="{{ plot_url }}" alt="Temperature Chart">
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -34,6 +34,12 @@ requests>=2.28.0
 typing-extensions>=4.4.0
 pyyaml>=6.0
 
+# Template engine for model cards
+jinja2>=3.1.0
+
+# Data drift detection
+evidently>=0.4.12
+
 # Development and testing
 pytest>=7.0.0
 pytest-cov>=4.0.0
@@ -49,9 +55,9 @@ jupyter>=1.0.0
 jupyterlab>=3.5.0
 ipykernel>=6.15.0
 
-# Additional ML tools
-xgboost>=1.6.0
-lightgbm>=3.3.0
-
 # Monitoring and logging
 prometheus-client>=0.16.0
+
+# Database
+psycopg2-binary>=2.9.0
+sqlalchemy>=1.4.0

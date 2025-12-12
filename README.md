@@ -1,316 +1,289 @@
-# 🌡️ Climate MLOps - Prédiction de Températures Climatiques
+# Climate MLOps - Prédiction Météo Marrakech 🌤️
 
-Un projet MLOps complet pour la prédiction des températures climatiques utilisant des données historiques de Berkeley Earth.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![MLOps](https://img.shields.io/badge/MLOps-Enabled-green.svg)]()
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)]()
 
-## 🎯 Objectifs du Projet
+Projet MLOps avancé pour la prédiction météorologique de **Marrakech** (2018-2023) avec des pratiques DevOps/MLOps modernes.
 
-- **Analyse exploratoire** des données climatiques (1750-2015)
-- **Développement de modèles ML** (Random Forest, LSTM, ARIMA)
-- **Pipeline de données automatisé** avec validation
-- **API FastAPI** pour servir les prédictions
-- **Tracking des expériences** avec MLflow
-- **Déploiement containerisé** avec Docker
+## 🎯 Objectif
 
-## 🏗️ Architecture du Projet
+Prédire les variables météorologiques de Marrakech en utilisant des données historiques (2018-2023) :
+- **Températures** : min, max, moyenne, température ressentie
+- **Précipitations** : cumuls journaliers et hebdomadaires
+- **Vent** : vitesse maximale et moyenne
+- **Autres** : humidité, pression atmosphérique
 
-```
-climate-mlops/
-├── 📊 01_exploratory_analysis.ipynb    # Analyse exploratoire
-├── 🤖 02_model_development.ipynb       # Développement des modèles
-├── src/
-│   ├── 🔧 data_pipeline.py             # Pipeline de données
-│   ├── 🚀 train_model.py               # Script d'entraînement
-│   └── 🌐 api.py                       # API FastAPI
-├── 🐳 docker-compose.yml               # Développement
-├── 🐳 docker-compose.prod.yml          # Production
-├── 📦 requirements.txt                 # Dépendances Python
-└── 📋 README.md                        # Documentation
-```
+## 📊 Dataset
 
-## 🚀 Démarrage Rapide
+**Source** : `marrakech_weather_2018_2023_final.csv`
+- **Période** : 2018-01-01 → 2023-12-31 (6 ans)
+- **Fréquence** : Données journalières
+- **Volume** : 2191 observations
+- **Variables** : 21 features météorologiques
 
-### 1. Prérequis
+### Variables principales :
+- `temperature_2m_max/min/mean (°C)` - Températures quotidiennes
+- `apparent_temperature_max/min (°C)` - Températures ressenties
+- `precipitation_sum (mm)` - Précipitations totales
+- `rain_sum (mm)` - Pluie totale
+- `wind_speed_10m_max (km/h)` - Vitesse maximale du vent
+- `wind_gusts_10m_max (km/h)` - Rafales maximales
+
+## 🚀 Quick Start
+
+### 1. Installation
+
 ```bash
-# Docker et Docker Compose installés
-docker --version
-docker-compose --version
-```
-
-### 2. Cloner et démarrer
-```bash
-git clone <your-repo>
+# Cloner le repo
+git clone <repo-url>
 cd climate-mlops
 
-# Démarrage de l'environnement de développement
-docker-compose up -d
-
-# Ou pour la production
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-### 3. Accès aux services
-- **📊 Jupyter Lab** : http://localhost:8889
-- **📈 MLflow** : http://localhost:5050  
-- **🌐 API** : http://localhost:8000 (production uniquement)
-- **📚 Documentation API** : http://localhost:8000/docs
-
-## 📊 Utilisation
-
-### Analyse Exploratoire
-1. Ouvrez Jupyter Lab (http://localhost:8889)
-2. Exécutez `01_exploratory_analysis.ipynb`
-3. Visualisez les tendances climatiques historiques
-
-### Développement de Modèles
-1. Exécutez `02_model_development.ipynb`
-2. Suivez l'entraînement des modèles :
-   - **Random Forest** : Modèle d'ensemble robuste
-   - **LSTM** : Réseau de neurones pour séries temporelles
-   - **ARIMA** : Modèle statistique classique
-3. Consultez MLflow pour comparer les performances
-
-### Entraînement Automatisé
-```bash
-# Entraînement de base
-docker-compose exec jupyter python src/train_model.py
-
-# Avec optimisation des hyperparamètres
-docker-compose exec jupyter python src/train_model.py --optimize --trials 100
-```
-
-### API de Prédiction
-```bash
-# Test de l'API
-curl -X POST "http://localhost:8000/predict" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "year": 2025,
-    "month": 12,
-    "use_lag_features": true
-  }'
-
-# Prédictions par batch
-curl -X POST "http://localhost:8000/predict/batch" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "predictions": [
-      {"year": 2025, "month": 1},
-      {"year": 2025, "month": 6},
-      {"year": 2025, "month": 12}
-    ],
-    "model_name": "random_forest"
-  }'
-```
-
-## 🔧 Pipeline de Données
-
-Le pipeline automatisé (`src/data_pipeline.py`) effectue :
-
-1. **Chargement** : Données Kaggle Berkeley Earth
-2. **Validation** : Contrôle qualité automatique
-3. **Nettoyage** : Traitement des valeurs manquantes
-4. **Feature Engineering** :
-   - Features temporelles (année, mois, saison)
-   - Features cycliques (sin/cos pour saisonnalité)
-   - Features de lag (1, 3, 6, 12 mois)
-   - Moyennes mobiles (3, 6, 12 mois)
-   - Tendances et volatilité
-5. **Normalisation** : StandardScaler pour ML
-6. **Division** : Train/Test temporel (2010 comme split)
-
-## 🤖 Modèles Disponibles
-
-### Random Forest
-- **Type** : Ensemble learning
-- **Avantages** : Robuste, interprétable
-- **Features** : Importance des variables
-- **Performance** : RMSE ~0.5°C
-
-### LSTM (Deep Learning)
-- **Type** : Réseau de neurones récurrent
-- **Avantages** : Capture les dépendances temporelles
-- **Architecture** : 2 couches LSTM + Dense
-- **Séquences** : 12 mois de contexte
-
-### Régression Linéaire (Baseline)
-- **Type** : Modèle de référence
-- **Usage** : Comparaison de performance
-- **Simplicité** : Interprétation facile
-
-## 📈 MLflow Tracking
-
-Toutes les expériences sont trackées automatiquement :
-
-- **Paramètres** : Hyperparamètres des modèles
-- **Métriques** : RMSE, MAE, R²
-- **Artifacts** : Modèles sauvegardés
-- **Comparaison** : Interface web intuitive
-
-```python
-# Accès programmatique
-import mlflow
-mlflow.set_tracking_uri("http://localhost:5050")
-runs = mlflow.search_runs(experiment_ids=["1"])
-```
-
-## 🌐 API Documentation
-
-### Endpoints Principaux
-
-| Endpoint | Méthode | Description |
-|----------|---------|-------------|
-| `/` | GET | Info de l'API |
-| `/health` | GET | Status de santé |
-| `/models` | GET | Liste des modèles |
-| `/predict` | POST | Prédiction unique |
-| `/predict/batch` | POST | Prédictions multiples |
-| `/retrain` | POST | Réentraînement |
-
-### Exemple de Réponse
-```json
-{
-  "predicted_temperature": 9.23,
-  "confidence_interval": {
-    "lower": 8.73,
-    "upper": 9.73
-  },
-  "model_used": "random_forest",
-  "prediction_date": "2024-12-02T15:30:00",
-  "input_features": {
-    "year": 2025,
-    "month": 12,
-    "model_type": "sklearn"
-  }
-}
-```
-
-## 🔄 Optimisation des Hyperparamètres
-
-Utilisation d'**Optuna** pour l'optimisation automatique :
-
-```python
-# Dans train_model.py
-best_params = {
-    'n_estimators': 250,
-    'max_depth': 20,
-    'min_samples_split': 3,
-    'min_samples_leaf': 1
-}
-```
-
-## 📊 Métriques de Performance
-
-### Évaluation
-- **RMSE** : Root Mean Square Error
-- **MAE** : Mean Absolute Error  
-- **R²** : Coefficient de détermination
-- **Validation temporelle** : Split chronologique
-
-### Résultats Typiques
-- **Random Forest** : RMSE ~0.4°C, R² ~0.95
-- **LSTM** : RMSE ~0.5°C, R² ~0.93
-- **Baseline** : RMSE ~0.8°C, R² ~0.85
-
-## 🐳 Déploiement
-
-### Développement
-```bash
-docker-compose up -d
-# Services : Jupyter + MLflow
-```
-
-### Production
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-# Services : API + MLflow + Jupyter + Scheduler
-```
-
-### Monitoring
-- **Health checks** automatiques
-- **Restart policies** configurées
-- **Logs** centralisés avec Docker
-
-## 🔧 Configuration
-
-### Variables d'Environnement
-```env
-MLFLOW_TRACKING_URI=http://localhost:5050
-PYTHONPATH=/workspace/src
-```
-
-### Ports
-- **8889** : Jupyter Lab
-- **5050** : MLflow UI  
-- **8000** : API FastAPI
-
-## 📝 Développement
-
-### Installation locale
-```bash
+# Installer les dépendances
 pip install -r requirements.txt
 ```
 
-### Tests
+### 2. Exécution du pipeline de données
+
 ```bash
+# Pipeline complet : chargement → preprocessing → features
+python src/data_pipeline.py
+```
+
+**Sortie attendue** :
+- `data/raw/weather_data_raw.csv` - Données brutes
+- `data/processed/weather_data_processed.csv` - Données nettoyées
+- `data/features/weather_data_features.csv` - Features enrichies (49 colonnes)
+
+### 3. Entraînement du modèle
+
+```bash
+# Test rapide avec RandomForest
+python test_marrakech_model.py
+
+# OU entraînement complet avec MLflow
+python src/train_model.py
+```
+
+### 4. API de prédiction
+
+```bash
+# Lancer l'API FastAPI
+python src/api.py
+
+# L'API sera disponible sur http://localhost:8000
+# Documentation : http://localhost:8000/docs
+```
+
+## 📂 Architecture du Projet
+
+```
+climate-mlops/
+├── marrakech_weather_2018_2023_final.csv   # Dataset principal
+├── src/
+│   ├── config.py                           # Configuration centralisée
+│   ├── marrakech_data_loader.py           # Chargeur de données Marrakech
+│   ├── data_pipeline.py                    # Pipeline de traitement (3 étapes)
+│   ├── train_model.py                      # Entraînement des modèles
+│   ├── api.py                              # API FastAPI
+│   └── evaluate_model.py                   # Évaluation et métriques
+├── data/
+│   ├── raw/                                # Données brutes
+│   ├── processed/                          # Données préprocessées
+│   └── features/                           # Features ML + matrices numpy
+├── models/                                 # Modèles entraînés (.pkl)
+├── mlruns/                                 # Expériences MLflow
+├── notebooks/                              # Notebooks d'exploration
+└── tests/                                  # Tests unitaires
+
+```
+
+## 🔧 Pipeline de Données (3 Étapes)
+
+### Étape 1 : Chargement des données 📥
+```python
+from src.data_pipeline import WeatherDataPipeline
+
+pipeline = WeatherDataPipeline()
+raw_data = pipeline.step1_download_raw_data()
+# Résultat : (2191, 22)
+```
+
+### Étape 2 : Preprocessing 🔧
+- Nettoyage des valeurs manquantes (interpolation linéaire)
+- Détection et traitement des outliers (méthode IQR)
+- Suppression des doublons
+- Tri chronologique
+
+```python
+processed_data = pipeline.step2_preprocess_data(raw_data)
+# Résultat : (2191, 22) - Données nettoyées
+```
+
+### Étape 3 : Feature Engineering 🎯
+- **Features temporelles** (11) : Year, Month, Day, Quarter, sin/cos cycliques
+- **Lag features** (5) : Retards de 1, 3, 7, 14, 30 jours
+- **Moving averages** (4) : Moyennes mobiles sur 3, 7, 14, 30 jours
+- **Tendance/Volatilité** (2) : Tendance sur 30j, volatilité sur 7j
+- **Features de précipitations** (2) : Cumuls sur 7 et 30 jours
+- **Features de vent** (2) : Moyennes mobiles sur 7 jours
+
+```python
+features_data = pipeline.step3_create_features(processed_data)
+# Résultat : (2161, 49) - Features enrichies
+```
+
+## 🤖 Modèles ML
+
+### RandomForest (par défaut)
+```python
+from sklearn.ensemble import RandomForestRegressor
+
+model = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=10,
+    random_state=42,
+    n_jobs=-1
+)
+```
+
+### Résultats attendus :
+- **temperature_2m_mean** : R² = 0.9843 (RMSE: 0.85°C)
+- **temperature_2m_min** : R² = 0.9055 (RMSE: 1.82°C)
+- **apparent_temperature_min** : R² = 0.8772 (RMSE: 2.47°C)
+
+## 🐳 Docker
+
+```bash
+# Build et lancement avec Docker Compose
+docker-compose up --build
+
+# Services disponibles :
+# - API : http://localhost:8000
+# - MLflow : http://localhost:5050
+# - Airflow : http://localhost:8080
+```
+
+## 📊 MLflow Tracking
+
+```bash
+# Lancer le serveur MLflow
+mlflow server --host 0.0.0.0 --port 5050
+
+# Interface : http://localhost:5050
+```
+
+## 🔍 Monitoring et Évaluation
+
+### Vérification du drift de données
+```bash
+python src/check_data_drift.py
+```
+
+### Génération de Model Card
+```bash
+python src/generate_model_card.py
+```
+
+### Comparaison de modèles
+```bash
+python src/model_comparison.py
+```
+
+## 🧪 Tests
+
+```bash
+# Tests unitaires
 pytest tests/
+
+# Test du pipeline complet
+python src/data_pipeline.py
+
+# Test d'entraînement rapide
+python test_marrakech_model.py
 ```
 
-### Formatage du code
-```bash
-black src/
-flake8 src/
+## 📈 Utilisation de l'API
+
+### Exemple de requête :
+
+```python
+import requests
+
+# Prédiction de température
+response = requests.post(
+    "http://localhost:8000/predict",
+    json={
+        "year": 2024,
+        "month": 6,
+        "day": 15
+    }
+)
+
+print(response.json())
+# {
+#   "temperature_predicted": 28.5,
+#   "confidence_interval": [26.8, 30.2],
+#   "model_version": "1.0.0"
+# }
 ```
 
-## 🚀 Prochaines Étapes
+### Documentation interactive :
+📚 **Swagger UI** : http://localhost:8000/docs
 
-1. **Tests unitaires** : Couverture complète
-2. **CI/CD** : GitHub Actions
-3. **Monitoring avancé** : Prometheus + Grafana
-4. **Data drift detection** : Evidently AI
-5. **A/B Testing** : Comparaison de modèles en production
-6. **Scaling** : Kubernetes deployment
+## 🔧 Configuration
 
-## 📚 Ressources
+Fichier `src/config.py` :
+```python
+DATA_PATH = "marrakech_weather_2018_2023_final.csv"
+MLFLOW_TRACKING_URI = "http://localhost:5050"
+MLFLOW_EXPERIMENT_NAME = "Marrakech_Weather_Prediction"
+```
 
-- **Données** : [Berkeley Earth](http://berkeleyearth.org/data/)
-- **MLflow** : [Documentation](https://mlflow.org/docs/latest/index.html)
-- **FastAPI** : [Guide](https://fastapi.tiangolo.com/)
-- **Optuna** : [Tutoriels](https://optuna.readthedocs.io/)
+Variables d'environnement supportées :
+- `DATA_PATH` - Chemin vers le dataset
+- `MLFLOW_TRACKING_URI` - URI du serveur MLflow
+- `API_PORT` - Port de l'API (défaut: 8000)
+
+## 🛠️ Technologies
+
+- **Python 3.8+** - Langage principal
+- **Pandas / NumPy** - Manipulation de données
+- **Scikit-learn** - Machine Learning
+- **MLflow** - Tracking et gestion des modèles
+- **FastAPI** - API REST
+- **Docker** - Conteneurisation
+- **Airflow** - Orchestration (optionnel)
+- **DVC** - Versioning des données (optionnel)
+
+## 📝 Notes de Migration
+
+Ce projet utilise désormais le dataset **Marrakech Weather 2018-2023** au lieu du dataset Kaggle global.
+
+### Avantages :
+✅ Données locales (pas de téléchargement Kaggle requis)  
+✅ Focus géographique sur Marrakech  
+✅ Période récente (2018-2023)  
+✅ 21 variables météorologiques complètes  
+✅ Données journalières (2191 jours)  
+
+### Fichiers modifiés :
+- `src/config.py` - Configuration du chemin de données
+- `src/marrakech_data_loader.py` - Nouveau loader créé
+- `src/data_pipeline.py` - Utilisation du nouveau loader
 
 ## 🤝 Contribution
 
-1. Fork le projet
-2. Créez une branch (`git checkout -b feature/nouvelle-fonctionnalite`)
-3. Commit (`git commit -am 'Ajout nouvelle fonctionnalité'`)
-4. Push (`git push origin feature/nouvelle-fonctionnalite`)
-5. Créez une Pull Request
+Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
 
 ## 📄 Licence
 
-MIT License - voir le fichier [LICENSE](LICENSE) pour plus de détails.
+MIT License
+
+## 👥 Auteurs
+
+Climate MLOps Team
 
 ---
 
-**🎯 Projet développé dans le cadre d'un apprentissage MLOps appliqué aux données climatiques**
-
-
-
-
-
-┌─────────────────────────────────────────────────────────┐
-│  Push Code → GitHub Actions CI/CD Pipeline             │
-└─────────────────────────────────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼
-    Tests (tests.yml)  Train (train.yml)  Docker (docker.yml)
-        │                  │                  │
-   ✅ Unit Tests      ✅ DVC Pull      ✅ Security Scan
-   ✅ Linting         ✅ Train Models   ✅ Build Images
-   ✅ Coverage        ✅ Evaluate       ✅ Push to Docker Hub
-                      ✅ MLflow Log
-                      ✅ Register Best
-                           │
-                    ┌──────┴──────┐
-                    ▼             ▼
-              Staging       Production
+**Note** : Pour toute question, consultez la documentation dans `/docs` ou ouvrez une issue.
