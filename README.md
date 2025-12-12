@@ -36,7 +36,7 @@ Prédire les variables météorologiques de Marrakech en utilisant des données 
 
 ```bash
 # Cloner le repo
-git clone <repo-url>
+git clone https://github.com/SIRGIANE/climate-mlops
 cd climate-mlops
 
 # Installer les dépendances
