@@ -1,50 +1,40 @@
-FROM apache/airflow:2.8.0-python3.10
+FROM apache/airflow:2.7.3-python3.10
 
+# Installer les outils système nécessaires
 USER root
-
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
     build-essential \
+    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
+# Revenir à l'utilisateur airflow
 USER airflow
 
-# Copy requirements
-COPY airflow/requirements-airflow.txt /tmp/requirements-airflow.txt
+# Installer les dépendances Python du projet
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Create a minimal requirements file for Airflow (without TensorFlow)
-RUN echo "pandas>=1.5.0\nnumpy>=1.21.0\nscikit-learn>=1.2.0\n\
-mlflow>=2.0.0\ndvc>=3.0.0\ndvc-s3>=2.0.0\n\
-fastapi>=0.95.0\nuvicorn>=0.20.0\npydantic>=1.10.0\n\
-joblib>=1.2.0\npython-dotenv>=0.19.0\nrequests>=2.28.0\n\
-pyyaml>=6.0\njinja2>=3.1.0\n\
-evidently>=0.4.12\ngreat-expectations>=0.17.19\n\
-optuna>=3.0.0\nstatsmodels>=0.13.0" > /tmp/requirements-minimal.txt
-
-# Install minimal Python dependencies with increased timeout
+# Installer les dépendances Airflow spécifiques
 RUN pip install --no-cache-dir \
-    --default-timeout=1000 \
-    -r /tmp/requirements-minimal.txt
+    apache-airflow-providers-postgres>=5.0.0 \
+    apache-airflow-providers-http>=4.0.0 \
+    apache-airflow-providers-celery>=3.0.0
 
-# Install Airflow-specific requirements
-RUN pip install --no-cache-dir \
-    --default-timeout=1000 \
-    -r /tmp/requirements-airflow.txt
+# Définir les répertoires de travail
+WORKDIR /opt/airflow
 
-# Set environment variables
-ENV AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
-ENV AIRFLOW__CORE__LOAD_EXAMPLES=false
-ENV AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
-ENV AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=true
-ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-ENV AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
-ENV AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@airflow-postgres/airflow
+# Exposer les ports
+EXPOSE 8080 8793
+
+# Configuration Airflow
+ENV AIRFLOW_HOME=/opt/airflow
+ENV AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
 ENV AIRFLOW__CELERY__BROKER_URL=redis://:@redis:6379/0
+ENV AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
 
-# Copy workspace
-COPY . /workspace
-WORKDIR /workspace
-
-USER airflow
+CMD ["webserver"]

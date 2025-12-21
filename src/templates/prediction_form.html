@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Prediction - Climate MLOps</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --secondary: #8b5cf6;
+            --accent: #06b6d4;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-darker: #020617;
+            --card-bg: rgba(15, 23, 42, 0.8);
+            --card-border: rgba(148, 163, 184, 0.1);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --gradient-aurora: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 50%, #06b6d4 100%);
+            --gradient-card: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            --border-radius: 24px;
+            --border-radius-sm: 16px;
+            --transition-smooth: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        [data-theme="light"] {
+            --bg-darker: #f1f5f9;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-border: rgba(148, 163, 184, 0.3);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-darker);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: 
+                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse 50% 60% at 40% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
+            animation: auroraMove 20s ease-in-out infinite;
+        }
+
+        @keyframes auroraMove {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-2%, 2%); }
+        }
+
+        /* Floating Orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            z-index: -1;
+            animation: orbFloat 15s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            width: 350px;
+            height: 350px;
+            background: var(--primary);
+            top: 5%;
+            right: 10%;
+        }
+
+        .orb-2 {
+            width: 280px;
+            height: 280px;
+            background: var(--secondary);
+            bottom: 10%;
+            left: 5%;
+            animation-delay: -7s;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+
+        /* Top Bar */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            z-index: 1000;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 1.8em;
+        }
+
+        .logo-text {
+            font-size: 1.4em;
+            font-weight: 700;
+            background: var(--gradient-aurora);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition-smooth);
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--primary);
+        }
+
+        .theme-toggle {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .theme-toggle:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 100px 20px 40px;
+        }
+
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .page-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--gradient-aurora);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 2em;
+            color: white;
+            box-shadow: 0 15px 40px rgba(14, 165, 233, 0.4);
+        }
+
+        .page-title {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: var(--gradient-aurora);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Form Card */
+        .form-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            animation: fadeInUp 0.8s ease-out 0.2s backwards;
+        }
+
+        .form-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-aurora);
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+        }
+
+        .form-section {
+            margin-bottom: 35px;
+        }
+
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .section-label i {
+            color: var(--primary);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            background: var(--bg-darker);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius-sm);
+            padding: 14px 16px;
+            font-size: 1em;
+            color: var(--text-primary);
+            transition: var(--transition-smooth);
+            font-family: inherit;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Submit Button */
+        .submit-section {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 40px;
+            border-radius: 14px;
+            font-size: 1em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--gradient-aurora);
+            color: white;
+            box-shadow: 0 10px 30px rgba(14, 165, 233, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(14, 165, 233, 0.5);
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Info Card */
+        .info-card {
+            background: var(--gradient-card);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius-sm);
+            padding: 20px;
+            margin-top: 30px;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .info-card i {
+            color: var(--primary);
+            font-size: 1.2em;
+            margin-top: 2px;
+        }
+
+        .info-card p {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        /* Quick Fill Buttons */
+        .quick-fill {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .quick-fill-btn {
+            background: var(--gradient-card);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quick-fill-btn:hover {
+            background: var(--gradient-aurora);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 0 20px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .container {
+                padding: 90px 15px 30px;
+            }
+
+            .page-title {
+                font-size: 2em;
+            }
+
+            .form-card {
+                padding: 25px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .submit-section {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="aurora-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <!-- Top Bar -->
+    <nav class="top-bar">
+        <div class="logo-section">
+            <span class="logo-icon">🌤️</span>
+            <span class="logo-text">Climate MLOps</span>
+        </div>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/web" class="nav-link active">Predictions</a>
+            <a href="/docs" class="nav-link">API Docs</a>
+        </div>
+        
+        <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </nav>
+
+    <div class="container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-icon">
+                <i class="fas fa-magic"></i>
+            </div>
+            <h1 class="page-title">Manual Weather Prediction</h1>
+            <p class="page-subtitle">
+                Enter weather parameters to get AI-powered temperature predictions using our trained RandomForest model
+            </p>
+        </div>
+
+        <!-- Form Card -->
+        <form action="/web/predict" method="POST" class="form-card">
+            <!-- Quick Fill Options -->
+            <div class="quick-fill">
+                <button type="button" class="quick-fill-btn" onclick="fillSummer()">
+                    <i class="fas fa-sun"></i> Summer Day
+                </button>
+                <button type="button" class="quick-fill-btn" onclick="fillWinter()">
+                    <i class="fas fa-snowflake"></i> Winter Day
+                </button>
+                <button type="button" class="quick-fill-btn" onclick="fillToday()">
+                    <i class="fas fa-calendar-day"></i> Today's Date
+                </button>
+                <button type="button" class="quick-fill-btn" onclick="clearForm()">
+                    <i class="fas fa-eraser"></i> Clear All
+                </button>
+            </div>
+
+            <!-- Date Section -->
+            <div class="form-section">
+                <div class="section-label">
+                    <i class="fas fa-calendar"></i>
+                    Date Information
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="date">Prediction Date *</label>
+                        <input type="date" id="date" name="date" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Temperature Section -->
+            <div class="form-section">
+                <div class="section-label">
+                    <i class="fas fa-thermometer-half"></i>
+                    Temperature Data (°C)
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="temp_max">Maximum Temperature *</label>
+                        <input type="number" step="0.1" id="temp_max" name="temp_max" placeholder="e.g., 35.5" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="temp_min">Minimum Temperature *</label>
+                        <input type="number" step="0.1" id="temp_min" name="temp_min" placeholder="e.g., 18.2" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="temp_mean">Mean Temperature *</label>
+                        <input type="number" step="0.1" id="temp_mean" name="temp_mean" placeholder="e.g., 26.8" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="app_temp_max">Apparent Temp Max</label>
+                        <input type="number" step="0.1" id="app_temp_max" name="app_temp_max" placeholder="e.g., 38.0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="app_temp_min">Apparent Temp Min</label>
+                        <input type="number" step="0.1" id="app_temp_min" name="app_temp_min" placeholder="e.g., 16.5" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="rel_humidity">Relative Humidity (%)</label>
+                        <input type="number" step="0.1" id="rel_humidity" name="rel_humidity" placeholder="e.g., 45" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Precipitation Section -->
+            <div class="form-section">
+                <div class="section-label">
+                    <i class="fas fa-cloud-rain"></i>
+                    Precipitation Data
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="precip_sum">Precipitation Sum (mm)</label>
+                        <input type="number" step="0.1" id="precip_sum" name="precip_sum" placeholder="e.g., 2.5" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="rain_sum">Rain Sum (mm)</label>
+                        <input type="number" step="0.1" id="rain_sum" name="rain_sum" placeholder="e.g., 2.0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="snowfall_sum">Snowfall Sum (cm)</label>
+                        <input type="number" step="0.1" id="snowfall_sum" name="snowfall_sum" placeholder="e.g., 0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="precip_hours">Precipitation Hours</label>
+                        <input type="number" id="precip_hours" name="precip_hours" placeholder="e.g., 3" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wind Section -->
+            <div class="form-section">
+                <div class="section-label">
+                    <i class="fas fa-wind"></i>
+                    Wind Data
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="wind_speed_max">Wind Speed Max (km/h)</label>
+                        <input type="number" step="0.1" id="wind_speed_max" name="wind_speed_max" placeholder="e.g., 25.5" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="wind_gusts_max">Wind Gusts Max (km/h)</label>
+                        <input type="number" step="0.1" id="wind_gusts_max" name="wind_gusts_max" placeholder="e.g., 45.0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="wind_dir">Wind Direction (°)</label>
+                        <input type="number" step="0.1" id="wind_dir" name="wind_dir" placeholder="e.g., 180" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Solar Section -->
+            <div class="form-section">
+                <div class="section-label">
+                    <i class="fas fa-sun"></i>
+                    Solar & Other Data
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="sw_rad_sum">Solar Radiation (MJ/m²)</label>
+                        <input type="number" step="0.1" id="sw_rad_sum" name="sw_rad_sum" placeholder="e.g., 22.5" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="et0">ET₀ Evapotranspiration (mm)</label>
+                        <input type="number" step="0.1" id="et0" name="et0" placeholder="e.g., 5.5" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="weathercode">Weather Code</label>
+                        <input type="number" id="weathercode" name="weathercode" placeholder="e.g., 0 (clear)" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="submit-section">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-brain"></i>
+                    Generate Prediction
+                </button>
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-home"></i>
+                    Back to Home
+                </a>
+            </div>
+
+            <!-- Info -->
+            <div class="info-card">
+                <i class="fas fa-info-circle"></i>
+                <p>
+                    <strong>Tip:</strong> Fields marked with * are required. The model uses 49 engineered features 
+                    based on historical Marrakech weather data (2018-2023) to predict temperatures. 
+                    Use the quick fill buttons to populate typical values for different seasons.
+                </p>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const toggle = document.getElementById('themeToggle');
+            const isLight = body.getAttribute('data-theme') === 'light';
+            
+            if (isLight) {
+                body.removeAttribute('data-theme');
+                toggle.innerHTML = '<i class="fas fa-moon"></i>';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.setAttribute('data-theme', 'light');
+                toggle.innerHTML = '<i class="fas fa-sun"></i>';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Load saved theme
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.body.setAttribute('data-theme', 'light');
+                document.getElementById('themeToggle').innerHTML = '<i class="fas fa-sun"></i>';
+            }
+        })();
+
+        // Quick fill functions
+        function fillSummer() {
+            document.getElementById('temp_max').value = 42.5;
+            document.getElementById('temp_min').value = 24.0;
+            document.getElementById('temp_mean').value = 33.2;
+            document.getElementById('app_temp_max').value = 45.0;
+            document.getElementById('app_temp_min').value = 22.5;
+            document.getElementById('rel_humidity').value = 25;
+            document.getElementById('precip_sum').value = 0;
+            document.getElementById('rain_sum').value = 0;
+            document.getElementById('snowfall_sum').value = 0;
+            document.getElementById('precip_hours').value = 0;
+            document.getElementById('wind_speed_max').value = 18.5;
+            document.getElementById('wind_gusts_max').value = 32.0;
+            document.getElementById('wind_dir').value = 45;
+            document.getElementById('sw_rad_sum').value = 28.5;
+            document.getElementById('et0').value = 7.2;
+            document.getElementById('weathercode').value = 0;
+        }
+
+        function fillWinter() {
+            document.getElementById('temp_max').value = 18.5;
+            document.getElementById('temp_min').value = 6.0;
+            document.getElementById('temp_mean').value = 12.2;
+            document.getElementById('app_temp_max').value = 17.0;
+            document.getElementById('app_temp_min').value = 3.5;
+            document.getElementById('rel_humidity').value = 65;
+            document.getElementById('precip_sum').value = 5.2;
+            document.getElementById('rain_sum').value = 5.0;
+            document.getElementById('snowfall_sum').value = 0;
+            document.getElementById('precip_hours').value = 4;
+            document.getElementById('wind_speed_max').value = 22.0;
+            document.getElementById('wind_gusts_max').value = 38.0;
+            document.getElementById('wind_dir').value = 270;
+            document.getElementById('sw_rad_sum').value = 12.5;
+            document.getElementById('et0').value = 2.8;
+            document.getElementById('weathercode').value = 61;
+        }
+
+        function fillToday() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+        }
+
+        function clearForm() {
+            document.querySelectorAll('input[type="number"]').forEach(input => {
+                input.value = input.hasAttribute('required') ? '' : '0';
+            });
+            document.getElementById('date').value = '';
+        }
+
+        // Set today's date by default
+        document.addEventListener('DOMContentLoaded', () => {
+            fillToday();
+        });
+    </script>
+</body>
+</html>

@@ -101,7 +101,12 @@ class WeatherModelTrainer:
     def __init__(self, mlflow_uri: str = DEFAULT_MLFLOW_URI, 
                  experiment_name: str = DEFAULT_EXPERIMENT_NAME):
         self.mlflow_uri = mlflow_uri
-        self.experiment_name = experiment_name
+        # If no custom name provided, use training date (YYYYMMDD)
+        if experiment_name == DEFAULT_EXPERIMENT_NAME or not experiment_name:
+            date_str = datetime.now().strftime('%Y%m%d')
+            self.experiment_name = f"training_{date_str}"
+        else:
+            self.experiment_name = experiment_name
         self.pipeline = WeatherDataPipeline()
         
         # Configuration MLflow avec stockage local des artefacts
@@ -109,7 +114,7 @@ class WeatherModelTrainer:
             os.makedirs("mlruns", exist_ok=True)
             mlflow.set_tracking_uri(f"file:./mlruns")
             mlflow.set_experiment(self.experiment_name)
-            logger.info(f"✅ MLflow configuré avec backend local: ./mlruns")
+            logger.info(f"✅ MLflow configuré avec backend local: ./mlruns | expérience: {self.experiment_name}")
         except Exception as e:
             logger.warning(f"⚠️ Erreur MLflow, continuant sans tracking: {e}")
             mlflow.set_experiment(self.experiment_name)
@@ -336,6 +341,195 @@ class WeatherModelTrainer:
         
         return best_model_name
     
+    def compare_models_advanced(self, models_results: Dict[str, Dict[str, float]], 
+                              training_times: Dict[str, float] = None) -> Dict[str, Any]:
+        """
+        Comparaison avancée des modèles avec critères multiples
+        Returns detailed selection results with scoring
+        """
+        logger.info("📊 COMPARAISON AVANCÉE DES MODÈLES:")
+        logger.info("=" * 80)
+        
+        # Normalisation des métriques pour scoring
+        rmse_values = [metrics['avg_test_rmse'] for metrics in models_results.values()]
+        r2_values = [metrics['avg_test_r2'] for metrics in models_results.values()]
+        mae_values = [metrics['avg_test_mae'] for metrics in models_results.values()]
+        
+        min_rmse, max_rmse = min(rmse_values), max(rmse_values)
+        min_r2, max_r2 = min(r2_values), max(r2_values)
+        min_mae, max_mae = min(mae_values), max(mae_values)
+        
+        model_scores = {}
+        
+        for model_name, metrics in models_results.items():
+            # Score normalisé (0-100)
+            # RMSE: plus bas = meilleur (inverse)
+            rmse_score = 100 * (1 - (metrics['avg_test_rmse'] - min_rmse) / (max_rmse - min_rmse)) if max_rmse != min_rmse else 100
+            
+            # R²: plus haut = meilleur
+            r2_score = 100 * (metrics['avg_test_r2'] - min_r2) / (max_r2 - min_r2) if max_r2 != min_r2 else 100
+            
+            # MAE: plus bas = meilleur (inverse)  
+            mae_score = 100 * (1 - (metrics['avg_test_mae'] - min_mae) / (max_mae - min_mae)) if max_mae != min_mae else 100
+            
+            # Pondération des scores (configurable)
+            weights = Config.MODEL_SELECTION_WEIGHTS if hasattr(Config, 'MODEL_SELECTION_WEIGHTS') else {
+                'rmse': 0.4,    # 40% - Erreur principale
+                'r2': 0.3,      # 30% - Qualité d'ajustement  
+                'mae': 0.2,     # 20% - Erreur absolue
+                'time': 0.1     # 10% - Temps d'entraînement
+            }
+            
+            # Score temporel (si disponible)
+            time_score = 100
+            if training_times and model_name in training_times:
+                max_time = max(training_times.values()) 
+                min_time = min(training_times.values())
+                if max_time != min_time:
+                    # Plus rapide = meilleur score
+                    time_score = 100 * (1 - (training_times[model_name] - min_time) / (max_time - min_time))
+            
+            # Score composite pondéré
+            composite_score = (
+                rmse_score * weights['rmse'] + 
+                r2_score * weights['r2'] + 
+                mae_score * weights['mae'] + 
+                time_score * weights['time']
+            )
+            
+            model_scores[model_name] = {
+                'composite_score': composite_score,
+                'rmse_score': rmse_score,
+                'r2_score': r2_score, 
+                'mae_score': mae_score,
+                'time_score': time_score,
+                'metrics': metrics,
+                'training_time': training_times.get(model_name, 0) if training_times else 0
+            }
+            
+            logger.info(f"\n{model_name}:")
+            logger.info(f"   📊 Score composite: {composite_score:.2f}/100")
+            logger.info(f"   📏 Test RMSE: {metrics['avg_test_rmse']:.4f} (score: {rmse_score:.1f})")
+            logger.info(f"   📊 Test R²: {metrics['avg_test_r2']:.4f} (score: {r2_score:.1f})")
+            logger.info(f"   📐 Test MAE: {metrics['avg_test_mae']:.4f} (score: {mae_score:.1f})")
+            if training_times and model_name in training_times:
+                logger.info(f"   ⏱️ Temps: {training_times[model_name]:.2f}s (score: {time_score:.1f})")
+        
+        # Sélection du meilleur modèle
+        best_model_name = max(model_scores.keys(), key=lambda k: model_scores[k]['composite_score'])
+        best_score = model_scores[best_model_name]['composite_score']
+        
+        logger.info(f"\n🏆 MEILLEUR MODÈLE: {best_model_name}")
+        logger.info(f"   📊 Score final: {best_score:.2f}/100")
+        logger.info("=" * 80)
+        
+        return {
+            'best_model': best_model_name,
+            'best_score': best_score,
+            'all_scores': model_scores,
+            'selection_criteria': {
+                'primary_metric': 'composite_score',
+                'weights': weights,
+                'improvement_threshold': Config.MODEL_PROMOTION_CRITERIA.get('min_score_improvement', 5.0)
+            }
+        }
+    
+    def should_deploy_model(self, current_results: Dict[str, Any], 
+                           previous_results: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Détermine si le nouveau modèle doit être déployé en production
+        Basé sur les critères de promotion définis dans Config
+        """
+        logger.info("🚀 ÉVALUATION POUR DÉPLOIEMENT:")
+        logger.info("=" * 60)
+        
+        best_model = current_results['best_model']
+        best_metrics = current_results['models_performance'][best_model]
+        
+        deployment_decision = {
+            'should_deploy': False,
+            'reasons': [],
+            'model_name': best_model,
+            'metrics': best_metrics,
+            'checks': {}
+        }
+        
+        criteria = Config.MODEL_PROMOTION_CRITERIA
+        
+        # Check 1: Performance minimale
+        min_r2_threshold = criteria.get('min_r2_threshold', 0.7)
+        current_r2 = best_metrics['avg_test_r2']
+        
+        if current_r2 >= min_r2_threshold:
+            deployment_decision['checks']['min_performance'] = True
+            deployment_decision['reasons'].append(f"✅ R² satisfaisant: {current_r2:.3f} >= {min_r2_threshold}")
+        else:
+            deployment_decision['checks']['min_performance'] = False
+            deployment_decision['reasons'].append(f"❌ R² insuffisant: {current_r2:.3f} < {min_r2_threshold}")
+        
+        # Check 2: Amélioration par rapport au modèle précédent
+        if previous_results:
+            prev_best = previous_results.get('best_model')
+            if prev_best and prev_best in previous_results.get('models_performance', {}):
+                prev_metrics = previous_results['models_performance'][prev_best]
+                
+                rmse_improvement = (prev_metrics['avg_test_rmse'] - best_metrics['avg_test_rmse']) / prev_metrics['avg_test_rmse']
+                r2_improvement = (best_metrics['avg_test_r2'] - prev_metrics['avg_test_r2']) / abs(prev_metrics['avg_test_r2'])
+                
+                min_rmse_improvement = criteria.get('min_rmse_improvement', 0.05)
+                min_r2_improvement = criteria.get('min_r2_improvement', 0.02)
+                
+                if rmse_improvement >= min_rmse_improvement:
+                    deployment_decision['checks']['rmse_improvement'] = True
+                    deployment_decision['reasons'].append(f"✅ Amélioration RMSE: {rmse_improvement:.1%} >= {min_rmse_improvement:.1%}")
+                else:
+                    deployment_decision['checks']['rmse_improvement'] = False
+                    deployment_decision['reasons'].append(f"⚠️ Amélioration RMSE limitée: {rmse_improvement:.1%} < {min_rmse_improvement:.1%}")
+                
+                if r2_improvement >= min_r2_improvement:
+                    deployment_decision['checks']['r2_improvement'] = True  
+                    deployment_decision['reasons'].append(f"✅ Amélioration R²: {r2_improvement:.1%} >= {min_r2_improvement:.1%}")
+                else:
+                    deployment_decision['checks']['r2_improvement'] = False
+                    deployment_decision['reasons'].append(f"⚠️ Amélioration R² limitée: {r2_improvement:.1%} < {min_r2_improvement:.1%}")
+        else:
+            # Premier modèle - pas de comparaison
+            deployment_decision['checks']['improvement'] = True
+            deployment_decision['reasons'].append("✅ Premier modèle - pas de modèle précédent à comparer")
+        
+        # Check 3: Données suffisantes pour validation
+        min_data_points = criteria.get('min_data_points', 100)
+        test_samples = current_results.get('data_preparation', {}).get('test_samples', 0)
+        
+        if test_samples >= min_data_points:
+            deployment_decision['checks']['sufficient_data'] = True
+            deployment_decision['reasons'].append(f"✅ Données suffisantes: {test_samples} >= {min_data_points}")
+        else:
+            deployment_decision['checks']['sufficient_data'] = False
+            deployment_decision['reasons'].append(f"❌ Données insuffisantes: {test_samples} < {min_data_points}")
+        
+        # Décision finale
+        require_all_checks = criteria.get('require_positive_tests', True)
+        
+        if require_all_checks:
+            deployment_decision['should_deploy'] = all(deployment_decision['checks'].values())
+        else:
+            # Au moins performance minimale + amélioration OU données suffisantes
+            deployment_decision['should_deploy'] = (
+                deployment_decision['checks'].get('min_performance', False) and
+                deployment_decision['checks'].get('sufficient_data', False)
+            )
+        
+        decision_text = "🚀 DÉPLOYER" if deployment_decision['should_deploy'] else "⏸️ NE PAS DÉPLOYER"
+        logger.info(f"\n📋 DÉCISION: {decision_text}")
+        
+        for reason in deployment_decision['reasons']:
+            logger.info(f"   {reason}")
+        
+        logger.info("=" * 60)
+        
+        return deployment_decision
+    
     def save_results(self, results: Dict[str, Any], filepath: str = None) -> None:
         """Sauvegarde des résultats d'entraînement"""
         if filepath is None:
@@ -357,24 +551,43 @@ class WeatherModelTrainer:
             # Préparation des données
             data_results = self.prepare_data()
             
+            # Dictionnaire pour suivre les temps d'entraînement
+            training_times = {}
+            import time
+            
             # Modèle baseline
+            start_time = time.time()
             lr_model, lr_metrics = self.train_linear_regression()
+            training_times['LinearRegression'] = time.time() - start_time
             
             # Gradient Boosting
+            start_time = time.time()
             gb_model, gb_metrics = self.train_gradient_boosting()
+            training_times['GradientBoosting'] = time.time() - start_time
             
             # Random Forest avec optimisation Optuna
             logger.info("🔍 Optimisation des hyperparamètres Random Forest...")
+            start_time = time.time()
             rf_model, best_hyperparams, rf_metrics = self.tune_random_forest_optuna(n_trials=20)  # Réduit pour rapidité
+            training_times['RandomForest'] = time.time() - start_time
             
-            # Comparaison des modèles
+            # Comparaison des modèles avec méthode avancée
             models_performance = {
                 'LinearRegression': lr_metrics,
                 'GradientBoosting': gb_metrics,
                 'RandomForest': rf_metrics
             }
             
-            best_model_name = self.compare_models(models_performance)
+            # Utilisation de la sélection avancée
+            logger.info("🧠 Utilisation de la sélection avancée avec score composite...")
+            advanced_comparison = self.compare_models_advanced(models_performance, training_times)
+            best_model_name = advanced_comparison['best_model']
+            
+            # Log de la comparaison simple aussi pour référence
+            simple_best = self.compare_models(models_performance)
+            if simple_best != best_model_name:
+                logger.info(f"📊 Note: Sélection simple (RMSE seul) aurait choisi: {simple_best}")
+                logger.info(f"📊 Sélection avancée (score composite) a choisi: {best_model_name}")
             
             # Compilation des résultats
             results = {
@@ -388,15 +601,23 @@ class WeatherModelTrainer:
                 'models_performance': models_performance,
                 'best_model': best_model_name,
                 'best_hyperparameters': best_hyperparams,
+                'training_times': training_times,
+                'selection_method': 'advanced_composite_score',
+                'model_selection_details': advanced_comparison,
                 'training_completed': datetime.now().isoformat(),
-                'mlflow_uri': self.mlflow_uri
+                'mlflow_uri': self.mlflow_uri,
+                'mlflow_experiment': self.experiment_name
             }
+            
+            # Évaluation pour déploiement
+            deployment_decision = self.should_deploy_model(results)
+            results['deployment_recommendation'] = deployment_decision
             
             # Sauvegarde des résultats
             self.save_results(results)
             
             logger.info("🎉 ENTRAÎNEMENT MÉTÉO TERMINÉ AVEC SUCCÈS")
-            logger.info(f"📊 Consultez MLflow: {self.mlflow_uri}")
+            logger.info(f"📊 Consultez MLflow: {self.mlflow_uri} | Expérience: {self.experiment_name}")
             
             return results
             

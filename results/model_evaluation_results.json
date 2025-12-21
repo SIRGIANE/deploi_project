@@ -1,0 +1,85 @@
+{
+  "evaluation_timestamp": "2025-12-21T11:08:51.792765",
+  "best_model": "LinearRegression",
+  "performance_summary": {
+    "LinearRegression": {
+      "test_rmse": 0.9836,
+      "test_r2": 0.9581,
+      "test_mae": 0.7579,
+      "performance_grade": "A+ (Excellent)"
+    },
+    "GradientBoosting": {
+      "test_rmse": 1.1967,
+      "test_r2": 0.9536,
+      "test_mae": 0.9334,
+      "performance_grade": "A+ (Excellent)"
+    },
+    "RandomForest": {
+      "test_rmse": 1.3463,
+      "test_r2": 0.948,
+      "test_mae": 1.0545,
+      "performance_grade": "A (Tr\u00e8s bon)"
+    }
+  },
+  "model_comparison": {
+    "ranking_by_rmse": [
+      {
+        "model": "LinearRegression",
+        "rmse": 0.9835629860206653
+      },
+      {
+        "model": "GradientBoosting",
+        "rmse": 1.196650448197966
+      },
+      {
+        "model": "RandomForest",
+        "rmse": 1.3462500194306566
+      }
+    ],
+    "ranking_by_r2": [
+      {
+        "model": "LinearRegression",
+        "r2": 0.958132211106686
+      },
+      {
+        "model": "GradientBoosting",
+        "r2": 0.9536013687983561
+      },
+      {
+        "model": "RandomForest",
+        "r2": 0.9479969881715306
+      }
+    ],
+    "performance_gaps": {
+      "LinearRegression": {
+        "rmse_gap_percent": 0.0,
+        "r2_gap_percent": 0.0
+      },
+      "GradientBoosting": {
+        "rmse_gap_percent": 21.66,
+        "r2_gap_percent": 0.47
+      },
+      "RandomForest": {
+        "rmse_gap_percent": 36.87,
+        "r2_gap_percent": 1.06
+      }
+    }
+  },
+  "deployment_ready": true,
+  "data_quality_check": {
+    "total_samples": 2201,
+    "train_test_ratio": 3.99,
+    "feature_count": 22,
+    "target_variables": [
+      "temperature_2m_mean",
+      "temperature_2m_min",
+      "temperature_2m_max"
+    ],
+    "data_quality_score": "Good"
+  },
+  "recommendations": [
+    "\ud83c\udfc6 Excellentes performances - Mod\u00e8le pr\u00eat pour la production",
+    "\ud83d\ude80 D\u00e9ploiement automatique approuv\u00e9",
+    "\ud83d\udca1 Relation lin\u00e9aire d\u00e9tect\u00e9e - Mod\u00e8le simple mais efficace"
+  ]
+}

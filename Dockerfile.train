@@ -1,15 +1,37 @@
 FROM python:3.10-slim
 
+# Installer les outils système nécessaires
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    gcc \
+    g++ \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Créer un utilisateur non-root
+RUN useradd --create-home --shell /bin/bash app_user
+
+# Définir le répertoire de travail
 WORKDIR /workspace
 
-RUN pip install --upgrade pip
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
+# Copier les requirements et installer les dépendances
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-RUN pip install jupyterlab matplotlib seaborn plotly pandas scikit-learn scipy mlflow kaggle
+# Copier le code source
+COPY . .
 
-EXPOSE 8888 5000
+# Changer le propriétaire des fichiers
+RUN chown -R app_user:app_user /workspace
 
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+# Changer vers l'utilisateur non-root
+USER app_user
+
+# Exposer le port
+EXPOSE 8001
+
+# Commande par défaut
+CMD ["python", "main.py"]

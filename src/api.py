@@ -25,9 +25,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator, Field
 
-# Local imports
-from src.data_pipeline import ClimateDataPipeline
-from src.config import Config
+# Local imports - Utiliser les imports relatifs
+from .data_pipeline import ClimateDataPipeline
+from .config import Config
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -583,7 +583,7 @@ async def retrain_task():
 @app.get("/web", response_class=HTMLResponse)
 async def web_home(request: Request):
     """Page d'accueil avec formulaire de prédiction"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("prediction_form.html", {"request": request})
 
 @app.post("/web/predict", response_class=HTMLResponse)
 async def web_predict(
@@ -668,73 +668,352 @@ async def web_predict(
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """Tableau de bord avec météo actuelle et prédictions"""
+    """Tableau de bord avec météo actuelle et prédictions - Utilise les données cumulatives"""
     try:
-        # Récupérer les données des 7 derniers jours
-        weather_history = fetch_weather_history(7)
+        global historical_df
         
-        # Récupérer les données actuelles pour aujourd'hui
-        current_weather = fetch_current_weather()
-        today = datetime.now().date()
-        today_data = current_weather[current_weather['time'] == today]
+        # 1. Essayer de charger les données cumulatives (avec nouvelles collectes)
+        try:
+            from .marrakech_data_loader import MarrakechWeatherDataLoader
+            loader = MarrakechWeatherDataLoader()
+            cumulative_data = loader.get_cumulative_data()
+            data_source = "cumulative"
+            logger.info(f"📊 Dashboard: utilisation des données cumulatives ({len(cumulative_data)} lignes)")
+        except Exception as e:
+            logger.warning(f"⚠️ Données cumulatives non disponibles, utilisation du CSV: {e}")
+            cumulative_data = historical_df.copy()
+            data_source = "historical"
         
-        if today_data.empty:
-            today_data = current_weather.iloc[0]
-        else:
-            today_data = today_data.iloc[0]
+        # 2. Récupérer les données d'aujourd'hui via API (temps réel)
+        try:
+            today_weather = loader.fetch_today_weather_data()
+            if not today_weather.empty:
+                today_data = today_weather.iloc[-1].to_dict()
+                today_live = True
+                logger.info("🌐 Données d'aujourd'hui récupérées en temps réel")
+            else:
+                today_data = cumulative_data.iloc[-1].to_dict()
+                today_live = False
+        except Exception as e:
+            logger.warning(f"⚠️ API météo non disponible, utilisation des dernières données: {e}")
+            today_data = cumulative_data.iloc[-1].to_dict()
+            today_live = False
         
-        # Préparer les features pour la prédiction
-        features = today_data.to_dict()
-        features.pop('time', None)
+        # 3. Normaliser les noms de colonnes (gérer les deux formats)
+        def get_value(row, keys, default=0):
+            """Récupère une valeur en essayant plusieurs noms de colonnes"""
+            for key in keys if isinstance(keys, list) else [keys]:
+                if key in row:
+                    val = row[key]
+                    return val if pd.notna(val) else default
+            return default
         
-        # Transformer et prédire
-        temp_df = historical_df.copy()
-        temp_df = pd.concat([temp_df, pd.DataFrame([features])], ignore_index=True)
-        transformed = model_manager.pipeline.transform(temp_df)
-        last_features = transformed.iloc[-1][model_manager.feature_order].values.reshape(1, -1)
-        if model_manager.pipeline.is_fitted:
-            last_features = model_manager.pipeline.scaler.transform(last_features)
-        prediction = model_manager.predict('random_forest', last_features)
+        # 4. Prendre les N derniers jours selon le filtre (par défaut 7)
+        weather_history = cumulative_data.tail(30).copy()  # Garder 30 jours pour les filtres
         
-        # Préparer les données pour les graphiques
-        chart_data = {
-            'dates': [row['time'].strftime('%Y-%m-%d') for row in weather_history.to_dict('records')],
-            'temperature_mean': [round(row['temperature_2m_mean'], 1) for row in weather_history.to_dict('records')],
-            'temperature_max': [round(row['temperature_2m_max'], 1) for row in weather_history.to_dict('records')],
-            'temperature_min': [round(row['temperature_2m_min'], 1) for row in weather_history.to_dict('records')],
-            'humidity': [round(row['relative_humidity_2m'], 1) for row in weather_history.to_dict('records')],
-            'precipitation': [round(row['precipitation_sum'], 1) for row in weather_history.to_dict('records')],
-            'windspeed': [round(row['windspeed_10m_max'], 1) for row in weather_history.to_dict('records')],
-            'today_forecast': {
-                'temperature_mean': round(today_data['temperature_2m_mean'], 1),
-                'temperature_max': round(today_data['temperature_2m_max'], 1),
-                'temperature_min': round(today_data['temperature_2m_min'], 1),
-                'humidity': round(today_data['relative_humidity_2m'], 1),
-                'precipitation': round(today_data['precipitation_sum'], 1),
-                'windspeed': round(today_data['windspeed_10m_max'], 1)
-            },
-            'prediction': {
-                'temperature_mean': round(prediction['predictions'].get('temperature_2m_mean', 20.0), 1),
-                'temperature_max': round(prediction['predictions'].get('temperature_2m_max', 25.0), 1),
-                'temperature_min': round(prediction['predictions'].get('temperature_2m_min', 15.0), 1)
-            }
+        # 5. Préparer today_data avec noms normalisés
+        today_normalized = {
+            'temperature_2m_max': get_value(today_data, ['temperature_2m_max (°C)', 'temperature_2m_max']),
+            'temperature_2m_min': get_value(today_data, ['temperature_2m_min (°C)', 'temperature_2m_min']),
+            'temperature_2m_mean': get_value(today_data, ['temperature_2m_mean (°C)', 'temperature_2m_mean']),
+            'apparent_temperature_max': get_value(today_data, ['apparent_temperature_max (°C)', 'apparent_temperature_max']),
+            'relative_humidity_2m': get_value(today_data, ['relative_humidity_2m (%)', 'relative_humidity_2m']),
+            'precipitation_sum': get_value(today_data, ['precipitation_sum (mm)', 'precipitation_sum']),
+            'windspeed_10m_max': get_value(today_data, ['windspeed_10m_max (km/h)', 'windspeed_10m_max']),
+            'shortwave_radiation_sum': get_value(today_data, ['shortwave_radiation_sum (MJ/m²)', 'shortwave_radiation_sum']),
         }
+        
+        # 6. Générer la prédiction
+        try:
+            transformed = model_manager.pipeline.transform(cumulative_data)
+            last_features = transformed.iloc[-1][model_manager.feature_order].values.reshape(1, -1)
+            if model_manager.pipeline.is_fitted:
+                last_features = model_manager.pipeline.scaler.transform(last_features)
+            prediction = model_manager.predict('random_forest', last_features)
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur prédiction: {e}")
+            prediction = {'predictions': {
+                'temperature_2m_max': today_normalized['temperature_2m_max'],
+                'temperature_2m_min': today_normalized['temperature_2m_min'],
+                'temperature_2m_mean': today_normalized['temperature_2m_mean']
+            }}
+        
+        # 7. Préparer les données pour les graphiques
+        chart_data = {
+            'dates': [],
+            'temperature_mean': [],
+            'temperature_max': [],
+            'temperature_min': [],
+            'humidity': [],
+            'precipitation': [],
+            'windspeed': [],
+        }
+        
+        for _, row in weather_history.iterrows():
+            # Date
+            dt = row.get('datetime', row.get('time', ''))
+            if pd.notna(dt):
+                chart_data['dates'].append(pd.to_datetime(dt).strftime('%Y-%m-%d'))
+            else:
+                continue
+            
+            # Valeurs normalisées
+            chart_data['temperature_mean'].append(round(get_value(row, ['temperature_2m_mean (°C)', 'temperature_2m_mean']), 1))
+            chart_data['temperature_max'].append(round(get_value(row, ['temperature_2m_max (°C)', 'temperature_2m_max']), 1))
+            chart_data['temperature_min'].append(round(get_value(row, ['temperature_2m_min (°C)', 'temperature_2m_min']), 1))
+            chart_data['humidity'].append(round(get_value(row, ['relative_humidity_2m (%)', 'relative_humidity_2m']), 1))
+            chart_data['precipitation'].append(round(get_value(row, ['precipitation_sum (mm)', 'precipitation_sum']), 1))
+            chart_data['windspeed'].append(round(get_value(row, ['windspeed_10m_max (km/h)', 'windspeed_10m_max']), 1))
+        
+        # 7b. AJOUTER LES DONNÉES D'AUJOURD'HUI AUX GRAPHIQUES
+        today_date_str = datetime.now().strftime('%Y-%m-%d')
+        if today_date_str not in chart_data['dates']:
+            logger.info(f"📅 Ajout des données d'aujourd'hui ({today_date_str}) aux graphiques")
+            chart_data['dates'].append(today_date_str)
+            chart_data['temperature_mean'].append(round(today_normalized['temperature_2m_mean'], 1))
+            chart_data['temperature_max'].append(round(today_normalized['temperature_2m_max'], 1))
+            chart_data['temperature_min'].append(round(today_normalized['temperature_2m_min'], 1))
+            chart_data['humidity'].append(round(today_normalized['relative_humidity_2m'], 1))
+            chart_data['precipitation'].append(round(today_normalized['precipitation_sum'], 1))
+            chart_data['windspeed'].append(round(today_normalized['windspeed_10m_max'], 1))
+        
+        # Ajouter les prévisions
+        chart_data['today_forecast'] = {
+            'date': today_date_str,
+            'temperature_mean': round(today_normalized['temperature_2m_mean'], 1),
+            'temperature_max': round(today_normalized['temperature_2m_max'], 1),
+            'temperature_min': round(today_normalized['temperature_2m_min'], 1),
+            'humidity': round(today_normalized['relative_humidity_2m'], 1),
+            'precipitation': round(today_normalized['precipitation_sum'], 1),
+            'windspeed': round(today_normalized['windspeed_10m_max'], 1)
+        }
+        
+        chart_data['prediction'] = {
+            'temperature_mean': round(prediction['predictions'].get('temperature_2m_mean', 20.0), 1),
+            'temperature_max': round(prediction['predictions'].get('temperature_2m_max', 25.0), 1),
+            'temperature_min': round(prediction['predictions'].get('temperature_2m_min', 15.0), 1)
+        }
+        
+        # 8. Infos sur la source des données
+        today = datetime.now().date()
         
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
-            "today_data": today_data.to_dict(),
+            "today_data": today_normalized,
             "prediction": prediction['predictions'],
             "chart_data": chart_data,
-            "current_date": today.strftime("%Y-%m-%d")
+            "current_date": today.strftime("%Y-%m-%d"),
+            "data_source": data_source,
+            "today_live": today_live,
+            "total_records": len(cumulative_data)
         })
         
     except Exception as e:
         logger.error(f"Erreur dashboard: {e}")
+        import traceback
+        traceback.print_exc()
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "error": str(e),
             "current_date": datetime.now().strftime("%Y-%m-%d")
         })
+
+@app.get("/dashboard/cumulative", response_class=HTMLResponse)
+async def dashboard_cumulative(request: Request):
+    """
+    📊 Dashboard cumulatif - Données historiques + aujourd'hui + statistiques MLOps
+    Affiche:
+    - Toutes les données cumulatives collectées
+    - Météo d'aujourd'hui (temps réel)
+    - Statistiques de collecte quotidienne
+    - État du retraining automatique (7 jours)
+    """
+    try:
+        from .marrakech_data_loader import MarrakechWeatherDataLoader
+        import json
+        
+        loader = MarrakechWeatherDataLoader()
+        
+        # 1. Charger les données cumulatives
+        try:
+            cumulative_data = loader.get_cumulative_data()
+            cumulative_loaded = True
+        except:
+            cumulative_data = historical_df.copy()
+            cumulative_loaded = False
+        
+        # 2. Récupérer les données d'aujourd'hui via API
+        try:
+            today_weather = loader.fetch_today_weather_data()
+            today_data = today_weather.iloc[-1].to_dict() if not today_weather.empty else {}
+            today_loaded = True
+        except Exception as e:
+            logger.warning(f"Impossible de récupérer les données d'aujourd'hui: {e}")
+            today_data = cumulative_data.iloc[-1].to_dict() if not cumulative_data.empty else {}
+            today_loaded = False
+        
+        # 3. Charger les statistiques de collecte
+        stats_file = Path("data/collection_stats.json")
+        if stats_file.exists():
+            with open(stats_file, 'r') as f:
+                collection_stats = json.load(f)
+        else:
+            collection_stats = {
+                'total_collections': 0,
+                'last_collection': None,
+                'days_since_last_training': loader.get_days_since_last_training(),
+                'new_data_since_training': 0,
+                'collection_history': []
+            }
+        
+        # 4. Calculer les statistiques
+        days_since_training = loader.get_days_since_last_training()
+        should_retrain = loader.should_trigger_retraining(threshold_days=7)
+        
+        # 5. Préparer les données pour les graphiques (30 derniers jours)
+        recent_data = cumulative_data.tail(30)
+        
+        chart_data = {
+            # Données historiques complètes (30 jours)
+            'dates': [pd.to_datetime(row['datetime']).strftime('%Y-%m-%d') for _, row in recent_data.iterrows()],
+            'temperature_mean': [round(row.get('temperature_2m_mean (°C)', row.get('temperature_2m_mean', 0)), 1) for _, row in recent_data.iterrows()],
+            'temperature_max': [round(row.get('temperature_2m_max (°C)', row.get('temperature_2m_max', 0)), 1) for _, row in recent_data.iterrows()],
+            'temperature_min': [round(row.get('temperature_2m_min (°C)', row.get('temperature_2m_min', 0)), 1) for _, row in recent_data.iterrows()],
+            'humidity': [round(row.get('relative_humidity_2m (%)', row.get('relative_humidity_2m', 0)), 1) for _, row in recent_data.iterrows()],
+            'precipitation': [round(row.get('precipitation_sum (mm)', row.get('precipitation_sum', 0)), 1) for _, row in recent_data.iterrows()],
+            
+            # Données d'aujourd'hui
+            'today': {
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'temperature_mean': round(today_data.get('temperature_2m_mean (°C)', today_data.get('temperature_2m_mean', 0)), 1),
+                'temperature_max': round(today_data.get('temperature_2m_max (°C)', today_data.get('temperature_2m_max', 0)), 1),
+                'temperature_min': round(today_data.get('temperature_2m_min (°C)', today_data.get('temperature_2m_min', 0)), 1),
+                'humidity': round(today_data.get('relative_humidity_2m (%)', today_data.get('relative_humidity_2m', 0)), 1),
+                'precipitation': round(today_data.get('precipitation_sum (mm)', today_data.get('precipitation_sum', 0)), 1),
+                'windspeed': round(today_data.get('windspeed_10m_max (km/h)', today_data.get('windspeed_10m_max', 0)), 1),
+                'is_live': today_loaded
+            },
+            
+            # Historique des collectes (pour graphique)
+            'collection_history': collection_stats.get('collection_history', [])[-14:]  # 14 derniers jours
+        }
+        
+        # 6. Statistiques MLOps
+        mlops_stats = {
+            'total_records': len(cumulative_data),
+            'date_range': {
+                'start': cumulative_data['datetime'].min().strftime('%Y-%m-%d') if 'datetime' in cumulative_data.columns else 'N/A',
+                'end': cumulative_data['datetime'].max().strftime('%Y-%m-%d') if 'datetime' in cumulative_data.columns else 'N/A'
+            },
+            'total_collections': collection_stats.get('total_collections', 0),
+            'last_collection': collection_stats.get('last_collection', 'Jamais'),
+            'days_since_training': days_since_training,
+            'retraining_threshold': 7,
+            'should_retrain': should_retrain,
+            'next_retrain_in': max(0, 7 - days_since_training),
+            'data_quality': {
+                'missing_values': cumulative_data.isnull().sum().sum(),
+                'completeness': round((1 - cumulative_data.isnull().sum().sum() / (len(cumulative_data) * len(cumulative_data.columns))) * 100, 1)
+            }
+        }
+        
+        return templates.TemplateResponse("dashboard_cumulative.html", {
+            "request": request,
+            "chart_data": chart_data,
+            "today_data": today_data,
+            "mlops_stats": mlops_stats,
+            "collection_stats": collection_stats,
+            "current_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "cumulative_loaded": cumulative_loaded,
+            "today_loaded": today_loaded
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur dashboard cumulatif: {e}")
+        import traceback
+        traceback.print_exc()
+        return templates.TemplateResponse("dashboard_cumulative.html", {
+            "request": request,
+            "error": str(e),
+            "current_date": datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+
+
+@app.get("/api/v1/collection/stats")
+async def get_collection_stats():
+    """
+    📊 API - Statistiques de collecte et retraining
+    """
+    try:
+        from .marrakech_data_loader import MarrakechWeatherDataLoader
+        import json
+        
+        loader = MarrakechWeatherDataLoader()
+        
+        # Charger les stats
+        stats_file = Path("data/collection_stats.json")
+        if stats_file.exists():
+            with open(stats_file, 'r') as f:
+                collection_stats = json.load(f)
+        else:
+            collection_stats = {}
+        
+        # Données cumulatives
+        try:
+            cumulative_data = loader.get_cumulative_data()
+            total_records = len(cumulative_data)
+            date_range = {
+                'start': cumulative_data['datetime'].min().isoformat(),
+                'end': cumulative_data['datetime'].max().isoformat()
+            }
+        except:
+            total_records = 0
+            date_range = None
+        
+        return {
+            "status": "ok",
+            "collection": {
+                "total_collections": collection_stats.get('total_collections', 0),
+                "last_collection": collection_stats.get('last_collection'),
+                "total_records": total_records,
+                "date_range": date_range
+            },
+            "retraining": {
+                "days_since_last_training": loader.get_days_since_last_training(),
+                "threshold_days": 7,
+                "should_retrain": loader.should_trigger_retraining(7),
+                "last_training": collection_stats.get('last_training')
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Erreur stats collection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/collection/trigger")
+async def trigger_collection(background_tasks: BackgroundTasks):
+    """
+    🚀 Déclenche manuellement une collecte de données
+    """
+    async def collect_data():
+        try:
+            from .marrakech_data_loader import MarrakechWeatherDataLoader
+            loader = MarrakechWeatherDataLoader()
+            result = loader.collect_and_store_today_data()
+            logger.info(f"✅ Collecte manuelle terminée: {result}")
+        except Exception as e:
+            logger.error(f"❌ Erreur collecte manuelle: {e}")
+    
+    background_tasks.add_task(collect_data)
+    
+    return {
+        "status": "started",
+        "message": "Collecte démarrée en arrière-plan",
+        "timestamp": datetime.now().isoformat()
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

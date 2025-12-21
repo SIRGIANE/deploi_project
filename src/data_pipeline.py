@@ -229,42 +229,39 @@ class WeatherDataPipeline:
     # ============================================================================
     
     def _detect_targets(self, df: pd.DataFrame) -> List[str]:
-        """Détecte plusieurs cibles météo (temp, humidité, vent, précipitations, pression)."""
-        targets = []
+        """Détecte plusieurs cibles météo dans l'ordre spécifié."""
+        # Ordre spécifié des cibles (temperature_2m_mean, temperature_2m_min, temperature_2m_max)
+        target_order = [
+            'temperature_2m_mean',
+            'temperature_2m_min',
+            'temperature_2m_max'
+        ]
         
-        excluded_suffixes = ['_lag', '_ma', '_volatility', '_diff', '_trend', '_encoded', '_rolling', '_sin', '_cos']
+        detected_targets = []
         
-        for col in df.columns:
-            if any(col.endswith(suffix) or suffix in col for suffix in excluded_suffixes):
-                continue
+        # D'abord, chercher les cibles dans l'ordre spécifié
+        for target_name in target_order:
+            if target_name in df.columns:
+                detected_targets.append(target_name)
+                logger.info(f"✅ Cible détectée: {target_name}")
+        
+        # Si aucune cible spécifiée trouvée, détection automatique des autres variables
+        if not detected_targets:
+            logger.warning("⚠️ Cibles spécifiées non trouvées, détection automatique...")
+            excluded_suffixes = ['_lag', '_ma', '_volatility', '_diff', '_trend', '_encoded', '_rolling', '_sin', '_cos']
+            
+            for col in df.columns:
+                if any(col.endswith(suffix) or suffix in col for suffix in excluded_suffixes):
+                    continue
+                    
+                col_lower = col.lower()
                 
-            col_lower = col.lower()
-            
-            if 'temp' in col_lower or 'temperature' in col_lower:
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    targets.append(col)
-                    continue
-            
-            if 'humid' in col_lower or 'humidity' in col_lower:
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    targets.append(col)
-                    continue
-            
-            if 'wind' in col_lower and ('speed' in col_lower or 'bearing' in col_lower):
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    targets.append(col)
-                    continue
-            
-            if 'pressure' in col_lower or 'press' in col_lower:
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    targets.append(col)
-                    continue
-            
-            if ('precip' in col_lower or 'rain' in col_lower) and '_encoded' not in col_lower:
-                if pd.api.types.is_numeric_dtype(df[col]):
-                    targets.append(col)
-        
-        return list(dict.fromkeys(targets))
+                if 'temp' in col_lower or 'temperature' in col_lower:
+                    if pd.api.types.is_numeric_dtype(df[col]):
+                        detected_targets.append(col)
+                        continue
+                
+        return list(dict.fromkeys(detected_targets))
 
     def prepare_ml_data(self, df: pd.DataFrame = None, 
                        split_ratio: float = DEFAULT_SPLIT_RATIO,

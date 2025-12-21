@@ -1,188 +1,221 @@
 """
-Tests unitaires pour le pipeline de données
+Tests unitaires pour le pipeline de données météorologiques
 """
 
 import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import tempfile
-from datetime import datetime
+import shutil
 
-# Importer les modules à tester
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.data_pipeline import DataPipeline
+from src.data_pipeline import WeatherDataPipeline
+from src.config import Config
 
 
-class TestDataPipeline:
-    """Tests pour la classe DataPipeline"""
+class TestWeatherDataPipeline:
+    """Suite de tests pour le pipeline de données"""
     
     @pytest.fixture
-    def sample_data(self):
-        """Créer des données d'exemple pour les tests"""
-        dates = pd.date_range('2018-01-01', periods=1000, freq='D')
-        data = pd.DataFrame({
-            'time': dates,
-            'temperature_2m_mean': np.random.randn(1000) * 5 + 20,
-            'temperature_2m_max': np.random.randn(1000) * 5 + 25,
-            'temperature_2m_min': np.random.randn(1000) * 5 + 15,
-            'precipitation_sum': np.random.rand(1000) * 10
-        })
-        return data
+    def temp_dir(self):
+        """Créer un répertoire temporaire pour les tests"""
+        temp_dir = tempfile.mkdtemp()
+        yield temp_dir
+        # Cleanup
+        shutil.rmtree(temp_dir, ignore_errors=True)
     
     @pytest.fixture
-    def pipeline(self):
-        """Créer une instance du pipeline"""
-        return DataPipeline()
+    def pipeline(self, temp_dir):
+        """Créer une instance du pipeline pour les tests"""
+        return WeatherDataPipeline(
+            raw_path=f"{temp_dir}/raw",
+            processed_path=f"{temp_dir}/processed",
+            features_path=f"{temp_dir}/features"
+        )
     
-    def test_data_loading(self, pipeline, sample_data):
-        """Test du chargement des données"""
-        assert sample_data is not None
-        assert len(sample_data) > 0
-        assert 'temperature_2m_mean' in sample_data.columns
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_pipeline_initialization(self, pipeline):
+        """Test que le pipeline s'initialise correctement"""
+        assert pipeline.raw_path.exists()
+        assert pipeline.processed_path.exists()
+        assert pipeline.features_path.exists()
+        assert not pipeline.is_fitted
     
-    def test_data_cleaning(self, pipeline, sample_data):
-        """Test du nettoyage des données"""
-        # Ajouter des NaN
-        sample_data.loc[0:10, 'temperature_2m_mean'] = np.nan
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_step1_download_raw_data(self, pipeline):
+        """Test le chargement des données brutes"""
+        raw_data = pipeline.step1_download_raw_data()
         
-        # Utiliser le loader pour le preprocessing
-        from src.marrakech_data_loader import MarrakechWeatherDataLoader
-        loader = MarrakechWeatherDataLoader("marrakech_weather_2018_2023_final.csv")
+        assert raw_data is not None
+        assert isinstance(raw_data, pd.DataFrame)
+        assert len(raw_data) > 0
+        assert raw_data.shape[1] > 0
         
-        # Mocking the load to avoid file dependency in unit test if possible, 
-        # but here we are testing the logic. 
-        # Since we can't easily mock the internal loader of DataPipeline without refactoring,
-        # we will test the loader's method directly or the pipeline's step2.
-        
-        cleaned = loader.preprocess_weather_data(sample_data)
-        
-        assert len(cleaned) == len(sample_data) # Should keep rows but fill NaNs
-        assert cleaned['temperature_2m_mean'].isna().sum() == 0
+        # Vérifier que le fichier a été sauvegardé
+        raw_file = pipeline.raw_path / "weather_data_raw.csv"
+        assert raw_file.exists()
     
-    def test_feature_engineering(self, pipeline, sample_data):
-        """Test de l'ingénierie des features"""
-        # Preprocess first
-        from src.marrakech_data_loader import MarrakechWeatherDataLoader
-        loader = MarrakechWeatherDataLoader("marrakech_weather_2018_2023_final.csv")
-        processed = loader.preprocess_weather_data(sample_data)
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_step2_preprocess_data(self, pipeline):
+        """Test le preprocessing des données"""
+        # D'abord charger les données brutes
+        raw_data = pipeline.step1_download_raw_data()
         
-        features = loader.create_weather_features(processed)
+        # Ensuite les prétraiter
+        processed_data = pipeline.step2_preprocess_data(raw_data)
         
-        assert 'Year' in features.columns
-        assert 'Month' in features.columns
-        assert features['Year'].min() >= 2018
+        assert processed_data is not None
+        assert isinstance(processed_data, pd.DataFrame)
+        assert len(processed_data) > 0
+        
+        # Vérifier que le fichier a été sauvegardé
+        processed_file = pipeline.processed_path / "weather_data_processed.csv"
+        assert processed_file.exists()
     
-    def test_data_split(self, pipeline, sample_data):
-        """Test de la division train/test"""
-        # This test depends on prepare_ml_data which uses the pipeline
-        # We need to mock the internal data loading or pass data
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_step3_create_features(self, pipeline):
+        """Test la création des features"""
+        # Pipeline complet jusqu'aux features
+        raw_data = pipeline.step1_download_raw_data()
+        processed_data = pipeline.step2_preprocess_data(raw_data)
+        features_data = pipeline.step3_create_features(processed_data)
         
-        # Let's test the logic manually or assume pipeline.prepare_ml_data works with passed df
-        # The current implementation of prepare_ml_data in DataPipeline takes df as argument
+        assert features_data is not None
+        assert isinstance(features_data, pd.DataFrame)
+        assert len(features_data) > 0
+        assert features_data.shape[1] >= 40  # Au moins 40 features (raw + engineered)
         
-        # Preprocess and create features first
-        from src.marrakech_data_loader import MarrakechWeatherDataLoader
-        loader = MarrakechWeatherDataLoader("marrakech_weather_2018_2023_final.csv")
-        processed = loader.preprocess_weather_data(sample_data)
-        features = loader.create_weather_features(processed)
-        
-        ml_data = pipeline.prepare_ml_data(features, split_ratio=0.8)
-        
-        assert len(ml_data['X_train']) > 0
-        assert len(ml_data['X_test']) > 0
-        assert len(ml_data['X_train']) + len(ml_data['X_test']) <= len(features)
+        # Vérifier que le fichier a été sauvegardé
+        features_file = pipeline.features_path / "weather_data_features.csv"
+        assert features_file.exists()
     
-    def test_data_normalization(self, pipeline, sample_data):
-        """Test de la normalisation des données"""
-        from sklearn.preprocessing import StandardScaler
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_validate_data(self, pipeline):
+        """Test la validation des données"""
+        raw_data = pipeline.step1_download_raw_data()
         
-        scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(sample_data[['temperature_2m_mean']])
+        is_valid, errors = pipeline.validate_data(raw_data)
         
-        assert np.isclose(scaled_data.mean(), 0, atol=1e-10)
-        assert np.isclose(scaled_data.std(), 1, atol=1e-10)
+        assert isinstance(is_valid, bool)
+        assert isinstance(errors, list)
+        
+        if is_valid:
+            assert len(errors) == 0
     
-    def test_temporal_features(self, pipeline, sample_data):
-        """Test des features temporelles"""
-        sample_data['datetime'] = pd.to_datetime(sample_data['time'])
-        sample_data['Quarter'] = sample_data['datetime'].dt.quarter
-        sample_data['DayOfYear'] = sample_data['datetime'].dt.dayofyear
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_prepare_ml_data(self, pipeline):
+        """Test la préparation des données pour ML"""
+        # Pipeline complet
+        raw_data = pipeline.step1_download_raw_data()
+        processed_data = pipeline.step2_preprocess_data(raw_data)
+        features_data = pipeline.step3_create_features(processed_data)
         
-        assert sample_data['Quarter'].min() >= 1
-        assert sample_data['Quarter'].max() <= 4
-        assert sample_data['DayOfYear'].min() >= 1
-        assert sample_data['DayOfYear'].max() <= 366
+        ml_data = pipeline.prepare_ml_data(features_data)
+        
+        assert 'X_train' in ml_data
+        assert 'X_test' in ml_data
+        assert 'y_train' in ml_data
+        assert 'y_test' in ml_data
+        assert 'feature_names' in ml_data
+        assert 'target_names' in ml_data
+        
+        # Vérifier les shapes
+        assert ml_data['X_train'].ndim == 2
+        assert ml_data['X_test'].ndim == 2
+        assert ml_data['y_train'].ndim == 2
+        assert ml_data['y_test'].ndim == 2
+        
+        # Vérifier le train/test split (~80/20)
+        total_samples = len(ml_data['X_train']) + len(ml_data['X_test'])
+        train_ratio = len(ml_data['X_train']) / total_samples
+        assert 0.75 < train_ratio < 0.85
     
-    def test_lag_features(self, pipeline, sample_data):
-        """Test des features de décalage (lag)"""
-        sample_data['Temp_lag_1'] = sample_data['temperature_2m_mean'].shift(1)
-        sample_data['Temp_lag_7'] = sample_data['temperature_2m_mean'].shift(7)
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_pipeline_scaler(self, pipeline):
+        """Test que le scaler fonctionne correctement"""
+        raw_data = pipeline.step1_download_raw_data()
+        processed_data = pipeline.step2_preprocess_data(raw_data)
+        features_data = pipeline.step3_create_features(processed_data)
         
-        # Le premier élément de lag_1 doit être NaN
-        assert pd.isna(sample_data['Temp_lag_1'].iloc[0])
+        ml_data = pipeline.prepare_ml_data(features_data)
         
-        # Vérifier la cohérence
-        assert np.isclose(sample_data['Temp_lag_1'].iloc[1], 
-                         sample_data['temperature_2m_mean'].iloc[0])
+        # Vérifier que le scaler a été ajusté
+        assert pipeline.is_fitted
+        assert pipeline.scaler is not None
+        
+        # Vérifier que les données ont été normalisées
+        X_train = ml_data['X_train']
+        assert np.abs(X_train.mean()) < 0.1  # Moyenne proche de 0
+        assert np.abs(X_train.std() - 1.0) < 0.1  # Std proche de 1
     
-    def test_moving_average_features(self, pipeline, sample_data):
-        """Test des features de moyenne mobile"""
-        sample_data['Temp_ma_3'] = sample_data['temperature_2m_mean'].rolling(window=3).mean()
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_pipeline_save_and_load(self, pipeline, temp_dir):
+        """Test la sauvegarde et le chargement du pipeline"""
+        # Préparer les données
+        raw_data = pipeline.step1_download_raw_data()
+        processed_data = pipeline.step2_preprocess_data(raw_data)
+        features_data = pipeline.step3_create_features(processed_data)
+        pipeline.prepare_ml_data(features_data)
         
-        # Les 2 premiers éléments de ma_3 doivent être NaN
-        assert pd.isna(sample_data['Temp_ma_3'].iloc[0:2]).all()
+        # Sauvegarder
+        filepath = f"{temp_dir}/test_pipeline.joblib"
+        pipeline.save_pipeline(filepath)
+        assert Path(filepath).exists()
+        
+        # Créer un nouveau pipeline et charger
+        new_pipeline = WeatherDataPipeline(
+            raw_path=f"{temp_dir}/raw2",
+            processed_path=f"{temp_dir}/processed2",
+            features_path=f"{temp_dir}/features2"
+        )
+        new_pipeline.load_pipeline(filepath)
+        
+        assert new_pipeline.is_fitted
+        assert new_pipeline.scaler is not None
     
-    def test_data_quality(self, pipeline, sample_data):
-        """Test de la qualité des données"""
-        # Vérifier que les températures sont raisonnables
-        assert sample_data['temperature_2m_mean'].min() > -20
-        assert sample_data['temperature_2m_mean'].max() < 60
+    @pytest.mark.unit
+    @pytest.mark.data
+    def test_run_full_pipeline(self, pipeline):
+        """Test l'exécution complète du pipeline"""
+        results = pipeline.run_full_pipeline()
         
-        # Vérifier qu'il n'y a pas de duplicatas de dates
-        assert not sample_data['time'].duplicated().any()
-
-
-class TestDataPipelineIntegration:
-    """Tests d'intégration pour le pipeline complet"""
+        assert 'ml_data' in results
+        assert 'stats' in results
+        assert 'raw_data' in results
+        assert 'processed_data' in results
+        assert 'features_data' in results
+        
+        stats = results['stats']
+        assert stats['raw_shape'][0] > 0
+        assert stats['processed_shape'][0] > 0
+        assert stats['features_shape'][0] > 0
+        assert stats['pipeline_saved']
     
-    def test_full_pipeline(self):
-        """Test du pipeline complet"""
-        # Créer des données d'exemple (augmenté pour éviter l'erreur de données insuffisantes)
-        dates = pd.date_range('2018-01-01', periods=200, freq='D')
-        data = pd.DataFrame({
-            'time': dates,
-            'temperature_2m_mean': np.random.randn(200) * 5 + 20,
-            'temperature_2m_max': np.random.randn(200) * 5 + 25,
-            'temperature_2m_min': np.random.randn(200) * 5 + 15,
-        })
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_full_pipeline_integration(self, pipeline):
+        """Test d'intégration complet du pipeline"""
+        results = pipeline.run_full_pipeline()
         
-        # Initialiser le pipeline
-        pipeline = DataPipeline()
+        # Vérifier les statistiques
+        stats = results['stats']
         
-        # Injecter les données mockées pour éviter de charger le fichier réel
-        # On utilise les méthodes pas à pas
+        # Vérifier que les données diminuent légèrement (suppression des NaN)
+        assert stats['raw_shape'][0] >= stats['processed_shape'][0]
+        assert stats['processed_shape'][0] >= stats['features_shape'][0]
         
-        # 1. Preprocess
-        # On doit mocker le loader interne ou utiliser directement le loader
-        from src.marrakech_data_loader import MarrakechWeatherDataLoader
-        loader = MarrakechWeatherDataLoader("marrakech_weather_2018_2023_final.csv")
+        # Vérifier les features
+        # Note: feature_count = nombre de features sélectionnées pour ML (22)
+        # pas le nombre total de colonnes créées (50)
+        assert stats['feature_count'] >= 22
         
-        processed = loader.preprocess_weather_data(data)
-        
-        # 2. Features
-        features = loader.create_weather_features(processed)
-        
-        # 3. Prepare ML
-        ml_data = pipeline.prepare_ml_data(features)
-        
-        # Vérifier que le pipeline fonctionne
-        assert ml_data['X_train'].shape[0] > 0
-        assert ml_data['X_test'].shape[0] > 0
-        assert 'temperature_2m_mean' in ml_data['target_names']
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        # Vérifier les cibles
+        assert len(stats['target']) >= 1

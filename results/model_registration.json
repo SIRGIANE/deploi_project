@@ -1,0 +1,12 @@
+{
+  "model_name": "weather-linearregression",
+  "version": 1,
+  "run_id": "409d4efb54994d8d94508bfb54e12965",
+  "model_uri": "runs:/409d4efb54994d8d94508bfb54e12965/linearregression_model",
+  "registration_timestamp": "2025-12-21T11:08:34.612855",
+  "status": "registered",
+  "promotion_status": "success",
+  "production_version": 1,
+  "promotion_timestamp": "2025-12-21T11:08:34.621232",
+  "archived_versions": []
+}

@@ -3,29 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prediction Result</title>
+    <title>Prediction Result - Climate MLOps</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .result { max-width: 800px; margin: 0 auto; }
-        .prediction { background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        img { max-width: 100%; height: auto; }
-        a { display: inline-block; margin-top: 20px; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px; }
-        a:hover { background-color: #0b7dda; }
+        :root {
+            --primary: #0ea5e9;
+            --secondary: #8b5cf6;
+            --accent: #06b6d4;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --bg-darker: #020617;
+            --card-bg: rgba(15, 23, 42, 0.8);
+            --card-border: rgba(148, 163, 184, 0.1);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --gradient-aurora: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 50%, #06b6d4 100%);
+            --gradient-card: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            --border-radius: 24px;
+            --border-radius-sm: 16px;
+            --transition-smooth: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-darker);
+            min-height: 100vh;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: 
+                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse 50% 60% at 40% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
+            animation: auroraMove 20s ease-in-out infinite;
+        }
+
+        @keyframes auroraMove {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-2%, 2%); }
+        }
+
+        /* Floating Orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            z-index: -1;
+            animation: orbFloat 15s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            width: 300px;
+            height: 300px;
+            background: var(--primary);
+            top: 10%;
+            left: 10%;
+        }
+
+        .orb-2 {
+            width: 250px;
+            height: 250px;
+            background: var(--secondary);
+            bottom: 10%;
+            right: 10%;
+            animation-delay: -5s;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+
+        .result-container {
+            max-width: 900px;
+            width: 100%;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Header */
+        .result-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            background: var(--gradient-aurora);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 2.5em;
+            color: white;
+            box-shadow: 0 15px 40px rgba(14, 165, 233, 0.4);
+            animation: iconPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 15px 40px rgba(14, 165, 233, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 20px 50px rgba(14, 165, 233, 0.6); }
+        }
+
+        .result-header h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: var(--gradient-aurora);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .result-header p {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+        }
+
+        /* Prediction Card */
+        .prediction-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prediction-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-aurora);
+        }
+
+        .prediction-card h2 {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .prediction-card h2 i {
+            color: var(--primary);
+        }
+
+        .predictions-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+
+        .prediction-item {
+            background: var(--gradient-card);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius-sm);
+            padding: 30px;
+            text-align: center;
+            transition: var(--transition-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prediction-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-aurora);
+            transform: scaleX(0);
+            transition: var(--transition-smooth);
+        }
+
+        .prediction-item:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--box-shadow);
+            border-color: rgba(14, 165, 233, 0.3);
+        }
+
+        .prediction-item:hover::before {
+            transform: scaleX(1);
+        }
+
+        .prediction-item .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .prediction-item .label {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .prediction-item .value {
+            font-size: 2.5em;
+            font-weight: 700;
+            background: var(--gradient-aurora);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .prediction-item .unit {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            margin-left: 5px;
+            -webkit-text-fill-color: var(--text-secondary);
+        }
+
+        /* Chart Card */
+        .chart-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card h2 {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chart-card h2 i {
+            color: var(--primary);
+        }
+
+        .chart-card img {
+            width: 100%;
+            height: auto;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--card-border);
+        }
+
+        /* Action Buttons */
+        .actions {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 32px;
+            border-radius: 14px;
+            font-size: 1em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+            cursor: pointer;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: var(--gradient-aurora);
+            color: white;
+            box-shadow: 0 10px 30px rgba(14, 165, 233, 0.4);
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: var(--transition-smooth);
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(14, 165, 233, 0.5);
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .predictions-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .result-header h1 {
+                font-size: 2em;
+            }
+
+            .prediction-card {
+                padding: 25px;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="result">
-        <h1>Prediction Result</h1>
-        <div class="prediction">
-            <h2>Predicted Temperatures</h2>
-            <p><strong>Max Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_max', 25.0)) }} °C</p>
-            <p><strong>Min Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_min', 15.0)) }} °C</p>
-            <p><strong>Mean Temperature:</strong> {{ "%.2f"|format(prediction.get('temperature_2m_mean', 20.0)) }} °C</p>
+    <div class="aurora-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="result-container">
+        <!-- Header -->
+        <div class="result-header">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+            <h1>Prediction Complete!</h1>
+            <p>Your weather prediction has been successfully generated</p>
         </div>
-        <h2>Temperature Curve</h2>
-        <img src="{{ plot_url }}" alt="Temperature Curve">
-        <br>
-        <a href="/web">Make Another Prediction</a>
+
+        <!-- Prediction Results -->
+        <div class="prediction-card">
+            <h2><i class="fas fa-thermometer-half"></i> Predicted Temperatures</h2>
+            <div class="predictions-grid">
+                <div class="prediction-item">
+                    <span class="icon">🔥</span>
+                    <div class="label">Maximum Temperature</div>
+                    <div class="value">{{ "%.1f"|format(prediction.get('temperature_2m_max', 25.0)) }}<span class="unit">°C</span></div>
+                </div>
+                <div class="prediction-item">
+                    <span class="icon">❄️</span>
+                    <div class="label">Minimum Temperature</div>
+                    <div class="value">{{ "%.1f"|format(prediction.get('temperature_2m_min', 15.0)) }}<span class="unit">°C</span></div>
+                </div>
+                <div class="prediction-item">
+                    <span class="icon">🌡️</span>
+                    <div class="label">Mean Temperature</div>
+                    <div class="value">{{ "%.1f"|format(prediction.get('temperature_2m_mean', 20.0)) }}<span class="unit">°C</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Temperature Chart -->
+        <div class="chart-card">
+            <h2><i class="fas fa-chart-line"></i> Temperature Curve Visualization</h2>
+            <img src="{{ plot_url }}" alt="Temperature Curve">
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <a href="/web" class="btn btn-primary">
+                <i class="fas fa-redo"></i>
+                Make Another Prediction
+            </a>
+            <a href="/dashboard" class="btn btn-secondary">
+                <i class="fas fa-chart-area"></i>
+                View Dashboard
+            </a>
+            <a href="/" class="btn btn-secondary">
+                <i class="fas fa-home"></i>
+                Back to Home
+            </a>
+        </div>
     </div>
 </body>
 </html>

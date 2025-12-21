@@ -1,0 +1,39 @@
+{
+  "evaluation_timestamp": "2025-12-21T11:08:51.792765",
+  "best_model": "LinearRegression",
+  "models_ranking": [
+    {
+      "model": "LinearRegression",
+      "rmse": 0.9835629860206653
+    },
+    {
+      "model": "GradientBoosting",
+      "rmse": 1.196650448197966
+    },
+    {
+      "model": "RandomForest",
+      "rmse": 1.3462500194306566
+    }
+  ],
+  "performance_summary": {
+    "LinearRegression": {
+      "test_rmse": 0.9836,
+      "test_r2": 0.9581,
+      "test_mae": 0.7579,
+      "performance_grade": "A+ (Excellent)"
+    },
+    "GradientBoosting": {
+      "test_rmse": 1.1967,
+      "test_r2": 0.9536,
+      "test_mae": 0.9334,
+      "performance_grade": "A+ (Excellent)"
+    },
+    "RandomForest": {
+      "test_rmse": 1.3463,
+      "test_r2": 0.948,
+      "test_mae": 1.0545,
+      "performance_grade": "A (Tr\u00e8s bon)"
+    }
+  },
+  "deployment_recommendation": true
+}

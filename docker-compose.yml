@@ -1,4 +1,36 @@
 services:
+  # API FastAPI pour les prédictions météo
+  weather-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./:/workspace
+      - ./models:/workspace/models
+      - ./data:/workspace/data
+    working_dir: /workspace
+    depends_on:
+      weather-db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=weather-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=weather_data
+      - API_HOST=0.0.0.0
+      - API_PORT=8001
+    command: python main.py
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
   jupyter:
     build:
       context: .
