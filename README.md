@@ -56,7 +56,7 @@ A complete MLOps pipeline for weather prediction in Marrakech, Morocco. This sys
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repository>
+git clone https://github.com/SIRGIANE/climate-mlops
 cd climate-mlops
 ```
 
