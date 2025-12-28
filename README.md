@@ -341,7 +341,7 @@ az containerapp create \
 az group delete --name $RESOURCE_GROUP --yes --no-wait
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -352,42 +352,5 @@ az group delete --name $RESOURCE_GROUP --yes --no-wait
 7. Push to the branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **Open-Meteo** for providing free weather data API
-- **Apache Airflow** for workflow orchestration
-- **FastAPI** for the modern API framework
-- **Chart.js** for beautiful data visualization
-- **MLflow** for experiment tracking
-
-## 📞 Support
-
-For issues and questions:
-1. Check the troubleshooting section above
-2. Review Docker Compose logs: `docker-compose logs -f`
-3. Check application logs in the `logs/` directory
-4. Open an issue on GitHub
-
-## 🏆 Project Status
-
-- ✅ **Data Collection**: Automated daily collection from Open-Meteo API
-- ✅ **Multi-Model Training**: RandomForest + Gradient Boosting + Linear Regression
-- ✅ **Model Selection**: Automatic best model selection with performance comparison
-- ✅ **Hyperparameter Tuning**: Optuna optimization for RandomForest
-- ✅ **API**: FastAPI backend with real-time predictions  
-- ✅ **Dashboard**: Interactive web interface with Chart.js
-- ✅ **Orchestration**: Airflow DAG scheduling
-- ✅ **Storage**: PostgreSQL + CSV dual storage
-- ✅ **Monitoring**: Comprehensive logging and health checks
-- ✅ **Testing**: Unit tests with pytest
-- ✅ **Docker**: Containerized deployment
-
----
-
-**🎉 Congratulations! You now have a complete MLOps weather prediction system with 3 ML models running automatically!**
 
 The system will collect weather data daily at 6:00 AM, retrain all 3 models every 7 days, automatically select the best performer, and serve predictions without any manual intervention.
