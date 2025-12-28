@@ -1,0 +1,132 @@
+\DocumentMetadata{unactivate=tagging}
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+% Colors
+\definecolor{azureblue}{rgb}{0,0.5,1}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+
+% Code style
+\lstset{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    numbers=left,
+    numbersep=5pt,
+    tabsize=2,
+    frame=single
+}
+
+\title{\Huge\textbf{Climate MLOps : Guide Complet}\\
+\Large Système de Prédiction Météo Autonome (Marrakech)\\
+\vspace{0.5cm}
+\large Architecture, Continuous Training \& Déploiement Azure}
+\author{Sirgiane ouiçal}
+\date{28 Décembre 2025}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introduction et Vision}
+Le projet \textbf{Climate MLOps} n'est pas seulement un modèle de prédiction météo ; c'est un écosystème autonome capable de collecter des données, de s'auto-entraîner et de se déployer dans le Cloud. La vision centrale est le \textbf{Continuous Training} : le système s'adapte aux changements climatiques de Marrakech sans intervention humaine.
+
+\section{Architecture Technique}
+Le système repose sur une architecture multi-conteneurs (10 services) orchestrée par Docker.
+
+\subsection{Composants Principaux}
+\begin{itemize}
+    \item \textbf{Base de Données} : PostgreSQL pour le stockage des relevés historiques et des métadonnées Airflow.
+    \item \textbf{Orchestration} : Apache Airflow gère le pipeline de données et les cycles d'entraînement.
+    \item \textbf{ML Tracking} : MLflow enregistre chaque expérience, métrique et modèle produit.
+    \item \textbf{Frontend \& API} : FastAPI sert les prédictions via un Dashboard interactif.
+\end{itemize}
+
+\subsection{Image Docker Unifiée}
+Pour garantir la cohérence, nous utilisons une seule image (`climate-mlops-weather-api`) basée sur \texttt{apache/airflow:2.7.3-python3.10}. Cette image contient à la fois le moteur de calcul (Scikit-learn, Optuna), l'API et l'orchestrateur.
+
+\section{Le Cycle de Continuous Training}
+Le pipeline Airflow (`climate_pipeline_dag`) est le cœur du système.
+
+\begin{enumerate}
+    \item \textbf{Collecte Quotidienne (6h00)} : Récupération des données réelles depuis l'API Open-Meteo.
+    \item \textbf{Cycle de 7 jours} : Tous les 7 jours, le système lance un ré-entraînement complet.
+    \item \textbf{Sélection du "Best Model"} : Trois modèles s'affrontent (Linear Regression, Random Forest, Gradient Boosting). Le gagnant est choisi via un score composite (RMSE, $R^2$, temps de calcul).
+    \item \textbf{Quality Gates} : Un modèle n'est promu en production que si son $R^2 \ge 0.7$ et s'il s'améliore par rapport au modèle précédent.
+\end{enumerate}
+
+\section{Guide de Validation et Déploiement}
+
+\subsection{Phase 1 : Validation Locale}
+Avant tout déploiement Cloud, nous validons l'intégrité du système en local :
+\begin{lstlisting}[language=bash]
+# 1. Lancer la stack locale
+make up
+# 2. Verifier la sante du systeme
+python3 verify_deployment.py
+# 3. Executer les tests unitaires
+make test
+\end{lstlisting}
+
+\subsection{Phase 2 : Préparation Azure (ACR)}
+\begin{lstlisting}[language=bash]
+# Connexion et definition de la souscription
+az login --use-device-code
+az account set --subscription "1815cb03-0ab6-4382-9f78-d03c507c84e4"
+
+# Creation du registre
+az acr create -g rg-projet -n climatemlopsreg --sku Basic --admin-enabled true
+
+# Push de l'image validee
+az acr login --name climatemlopsreg
+export ACR_URL=$(az acr show -n climatemlopsreg --query loginServer -o tsv)
+docker tag climate-mlops-weather-api:latest $ACR_URL/climate-mlops:latest
+docker push $ACR_URL/climate-mlops:latest
+\end{lstlisting}
+
+\begin{center}
+\fbox{
+\begin{minipage}{0.9\textwidth}
+\textbf{Bénéfices du Cloud}
+\begin{itemize}
+    \item \textbf{Scalabilité Automatique} : Gère les pics de charge sans intervention manuelle.
+    \item \textbf{Infrastructure Gérée} : Haute disponibilité garantie par Azure (Switzerland North).
+    \item \textbf{Modèle Serverless} : Paiement à l'usage réel, idéal pour l'optimisation des coûts.
+\end{itemize}
+\end{minipage}
+}
+\end{center}
+\begin{lstlisting}[language=bash]
+az containerapp create \
+  --name weather-api \
+  --resource-group rg-projet \
+  --environment climate-mlops-env \
+  --image climatemlopsreg.azurecr.io/climate-mlops:latest \
+  --target-port 8000 \
+  --ingress external \
+  --cpu 1.0 --memory 2.0Gi \
+  --env-vars PYTHONPATH="/workspace"
+\end{lstlisting}
+
+\section{Maintenance et Nettoyage}
+Pour arrêter tous les services et libérer les ressources Azure après usage :
+\begin{lstlisting}[language=bash]
+# Supprimer toutes les ressources Azure du projet
+az group delete --name rg-projet --yes --no-wait
+\end{lstlisting}
+
+\section{Conclusion}
+Ce guide définit un workflow MLOps complet. Grâce à la conteneurisation et à l'automatisation d'Airflow, le système de Marrakech est prêt pour la production, offrant une solution robuste et scalable pour la prévision climatique.
+
+\end{document}

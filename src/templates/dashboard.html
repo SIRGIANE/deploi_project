@@ -6,6 +6,8 @@
     <title>Climate Analytics Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         /* ========== CSS VARIABLES - DARK THEME ========== */
         :root {
@@ -968,26 +970,24 @@
                         </div>
                     </div>
 
-                    <!-- Wind Chart -->
+                    <!-- Morocco Map -->
                     <div class="chart-panel">
                         <div class="chart-header">
                             <div class="chart-title">
-                                <i class="fas fa-wind wind-icon"></i>
-                                <span>Wind Speed</span>
+                                <i class="fas fa-map-marked-alt" style="color: var(--accent-green);"></i>
+                                <span>Morocco Location</span>
                             </div>
                             <div class="chart-actions">
-                                <button class="chart-action" onclick="downloadChart('windChart')" title="Download">
-                                    <i class="fas fa-download"></i>
+                                <button class="chart-action" onclick="centerMap()" title="Center on Marrakech">
+                                    <i class="fas fa-crosshairs"></i>
                                 </button>
-                                <button class="chart-action" onclick="toggleFullscreen('windChart')" title="Fullscreen">
+                                <button class="chart-action" onclick="toggleFullscreen('moroccoMap')" title="Fullscreen">
                                     <i class="fas fa-expand"></i>
                                 </button>
                             </div>
                         </div>
                         <div class="chart-body">
-                            <div class="chart-canvas-wrapper">
-                                <canvas id="windChart"></canvas>
-                            </div>
+                            <div id="moroccoMap" style="height: 100%; width: 100%; border-radius: 8px;"></div>
                         </div>
                     </div>
                 </div>
@@ -1363,13 +1363,110 @@
             showToast('Fullscreen mode coming soon!', 'info');
         }
         
+        // Morocco Map Initialization
+        let moroccoMap = null;
+        
+        function initMoroccoMap() {
+            const mapContainer = document.getElementById('moroccoMap');
+            if (!mapContainer) return;
+            
+            // Marrakech coordinates
+            const marrakechLat = 31.6295;
+            const marrakechLng = -7.9811;
+            
+            // Initialize map centered on Morocco
+            moroccoMap = L.map('moroccoMap', {
+                center: [marrakechLat, marrakechLng],
+                zoom: 6,
+                zoomControl: true,
+                scrollWheelZoom: true,
+                doubleClickZoom: true,
+                boxZoom: true,
+                keyboard: true,
+                dragging: true,
+                touchZoom: true
+            });
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(moroccoMap);
+            
+            // Add Marrakech marker with custom icon
+            const marrakechIcon = L.divIcon({
+                html: '<i class="fas fa-map-marker-alt" style="color: #ef4444; font-size: 24px;"></i>',
+                className: 'custom-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 24]
+            });
+            
+            const marrakechMarker = L.marker([marrakechLat, marrakechLng], {
+                icon: marrakechIcon
+            }).addTo(moroccoMap);
+            
+            // Add popup to marker
+            marrakechMarker.bindPopup(`
+                <div style="text-align: center; font-family: Inter, sans-serif;">
+                    <h3 style="margin: 0 0 8px 0; color: #1f2937;">🌴 Marrakech</h3>
+                    <p style="margin: 0; color: #6b7280; font-size: 14px;">
+                        <i class="fas fa-map-pin"></i> Climate Monitoring Station<br>
+                        <i class="fas fa-temperature-high"></i> Real-time weather data
+                    </p>
+                </div>
+            `).openPopup();
+            
+            // Add circle around Marrakech to show monitoring area
+            L.circle([marrakechLat, marrakechLng], {
+                color: '#10b981',
+                fillColor: '#10b981',
+                fillOpacity: 0.1,
+                radius: 50000, // 50km radius
+                weight: 2,
+                dashArray: '5, 5'
+            }).addTo(moroccoMap);
+            
+            // Add some other major Moroccan cities for context
+            const cities = [
+                { name: 'Casablanca', lat: 33.5731, lng: -7.5898, size: 'large' },
+                { name: 'Rabat', lat: 34.0209, lng: -6.8416, size: 'large' },
+                { name: 'Fès', lat: 34.0331, lng: -5.0003, size: 'medium' },
+                { name: 'Meknès', lat: 33.8950, lng: -5.5547, size: 'medium' },
+                { name: 'Agadir', lat: 30.4278, lng: -9.5981, size: 'medium' }
+            ];
+            
+            cities.forEach(city => {
+                const cityIcon = L.divIcon({
+                    html: `<i class="fas fa-city" style="color: #6b7280; font-size: ${city.size === 'large' ? '16px' : '12px'};"></i>`,
+                    className: 'city-marker',
+                    iconSize: city.size === 'large' ? [16, 16] : [12, 12],
+                    iconAnchor: city.size === 'large' ? [8, 16] : [6, 12]
+                });
+                
+                L.marker([city.lat, city.lng], { icon: cityIcon })
+                    .bindPopup(`<div style="text-align: center;"><strong>${city.name}</strong></div>`)
+                    .addTo(moroccoMap);
+            });
+            
+            console.log('Morocco map initialized successfully');
+        }
+        
+        function centerMap() {
+            if (moroccoMap) {
+                moroccoMap.setView([31.6295, -7.9811], 8);
+                showToast('Centered on Marrakech', 'success');
+            }
+        }
+        
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', () => {
             domReady = true;
             updateThemeIcon(getTheme());
             initCharts();
+            initMoroccoMap(); // Initialize the Morocco map
             showToast('Dashboard loaded successfully!', 'success');
         });
     </script>
 </body>
 </html>
+``` 

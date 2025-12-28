@@ -51,213 +51,45 @@ A complete MLOps pipeline for weather prediction in Marrakech, Morocco. This sys
 - 8GB RAM minimum
 - 10GB disk space
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Architecture Unifiée)
 
-### 1. Clone the Repository
+Ce projet utilise désormais une **Image Docker Unique** pour tous les services, simplifiant le déploiement et la maintenance.
 
+### 1. Démarrer le projet
 ```bash
-git clone https://github.com/SIRGIANE/climate-mlops
-cd climate-mlops
+make up
 ```
+Cette commande va :
+- Construire l'image unifiée (si nécessaire)
+- Lancer tous les services (API, Airflow, MLflow, Jupyter)
+- Vérifier automatiquement la santé du système
 
-### 2. Start the Services
+### 2. Commandes Utiles (Makefile)
 
+| Commande | Action |
+|----------|--------|
+| `make up` | Démarrer tous les services |
+| `make down` | Arrêter les services |
+| `make restart` | Redémarrage complet |
+| `make logs` | Voir les logs en direct |
+| `make status` | Vérifier l'état des services |
+| `make test` | Lancer les tests unitaires |
+| `make clean` | Tout nettoyer (supprime les données) |
+
+### 3. Accès aux Services
+
+| Service | URL | Credentials | Docker Image |
+|---------|-----|-------------|--------------|
+| **Dashboard** | http://localhost:8000/dashboard | - | `climate-mlops:latest` |
+| **API Docs** | http://localhost:8000/docs | - | `climate-mlops:latest` |
+| **Airflow** | http://localhost:8080 | `admin` / `admin` | `climate-mlops:latest` |
+| **MLflow** | http://localhost:5050 | - | `climate-mlops:latest` |
+| **Jupyter** | http://localhost:8889 | (Token vide) | `climate-mlops:latest` |
+
+### 4. Vérification Manuelle
+Vous pouvez aussi lancer le script de vérification :
 ```bash
-# Start all services with Docker Compose
-docker-compose up -d
-
-# Wait for services to initialize (2-3 minutes)
-docker-compose logs -f
-```
-
-### 3. Access the Applications
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **Dashboard** | http://localhost:8000/dashboard | - |
-| **FastAPI** | http://localhost:8000 | - |
-| **Airflow** | http://localhost:8080 | `airflow` / `airflow` |
-| **PostgreSQL** | localhost:5433 | `postgres` / `postgres` |
-
-### 4. Verify the Setup
-
-```bash
-# Check if all containers are running
-docker-compose ps
-
-# Test the API
-curl http://localhost:8000/health
-
-# Check Airflow DAGs
-curl http://localhost:8080/health
-```
-
-## 📊 Dashboard Features
-
-The interactive dashboard (`http://localhost:8000/dashboard`) provides:
-
-- **📈 Temperature Trends**: Min, Max, and Mean temperature charts
-- **💧 Humidity Tracking**: Relative humidity over time  
-- **🌧️ Precipitation Data**: Daily rainfall measurements
-- **💨 Wind Speed**: Wind speed and direction analysis
-- **🤖 ML Predictions**: Model predictions vs actual values
-- **🌓 Dark/Light Mode**: Toggle between themes
-- **📥 Data Export**: Download data as JSON
-
-## 🔄 Automated Pipeline
-
-The system runs automatically with the following schedule:
-
-### Daily (6:00 AM)
-```
-✅ Collect weather data from Open-Meteo API
-✅ Store in PostgreSQL + CSV backup  
-✅ Validate data quality
-✅ Check if retraining needed
-```
-
-### Weekly (Every 7 days)
-```
-🤖 Preprocess data (outliers, features)
-🤖 Train 3 ML models in parallel:
-   📊 Linear Regression (baseline)
-   🌲 Random Forest (with Optuna optimization)  
-   📈 Gradient Boosting
-🤖 Compare model performances (RMSE, MAE, R²)
-🤖 Select and save best performing model
-🤖 Update training metadata
-```
-
-## 📁 Project Structure
-
-```
-climate-mlops/
-├── 📂 src/                          # Source code
-│   ├── api.py                       # FastAPI backend
-│   ├── marrakech_data_loader.py     # Data collection & processing
-│   ├── data_pipeline.py             # ML data pipeline
-│   ├── train_model.py               # Model training
-│   ├── config.py                    # Configuration settings
-│   ├── templates/                   # HTML templates
-│   └── static/                      # Static assets
-├── 📂 airflow/
-│   └── dags/
-│       └── climate_pipeline_dag.py  # Airflow DAG
-├── 📂 data/                         # Data storage
-│   ├── raw/                         # Raw weather data
-│   ├── processed/                   # Cleaned data
-│   ├── features/                    # ML features
-│   └── cumulative_weather_data.csv  # Main dataset
-├── 📂 models/                       # Trained models
-│   ├── rf_model.pkl                 # RandomForest model
-│   ├── scaler.pkl                   # Data scaler
-│   └── data_pipeline.joblib         # Pipeline object
-├── 📂 results/                      # Training results
-│   └── weather_training_results.json
-├── 📂 mlruns/                       # MLflow experiments
-├── 📂 tests/                        # Unit tests
-├── docker-compose.yml              # Docker services
-├── Dockerfile.airflow              # Airflow container
-├── requirements.txt                # Python dependencies
-├── START.sh                        # Quick start script
-├── STOP.sh                         # Stop services script
-└── TEST.sh                         # Run tests script
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file (optional):
-
-```env
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5433
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=weather_db
-
-# API
-API_HOST=0.0.0.0
-API_PORT=8000
-
-# Airflow
-AIRFLOW_UID=50000
-```
-
-### Marrakech Coordinates
-
-The system is configured for Marrakech, Morocco:
-- **Latitude**: 31.6295°N
-- **Longitude**: 7.9811°W
-- **Timezone**: Africa/Casablanca
-
-## 🧪 Manual Testing
-
-### Test Data Collection
-
-```bash
-# Trigger manual data collection
-curl -X POST http://localhost:8000/api/v1/collection/trigger
-
-# Check collection status
-curl http://localhost:8000/api/v1/collection/status
-```
-
-### Test Model Prediction
-
-```bash
-# Get weather prediction (uses best performing model)
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "temperature_2m_max": 25.5,
-    "temperature_2m_min": 15.2,
-    "precipitation_sum": 0.0,
-    "windspeed_10m_max": 12.8
-  }'
-```
-
-### Test Airflow DAG
-
-```bash
-# Access Airflow UI: http://localhost:8080
-# Username: airflow, Password: airflow
-
-# Or trigger via CLI
-docker-compose exec airflow-webserver airflow dags trigger climate_data_pipeline
-```
-
-## 🛠️ Development
-
-### Using Helper Scripts
-
-```bash
-# Start all services
-./START.sh
-
-# Stop all services  
-./STOP.sh
-
-# Run tests
-./TEST.sh
-```
-
-### Manual Development Setup
-
-```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Run API locally (without Docker)
-python main.py
-
-# Run data collection manually
-python collect_today_data.py
-
-# Run tests
-pytest tests/ -v
+python3 verify_deployment.py
 ```
 
 ## 📊 Data Pipeline Details
@@ -464,19 +296,49 @@ ls mlruns/
 cat mlruns/*/meta.yaml
 ```
 
-## 🚀 Production Deployment
+## 🚀 Azure Cloud Deployment
 
-For production deployment:
+Ce projet est optimisé pour un déploiement sur **Azure Container Apps**.
 
+### 1. Configuration Initiale
 ```bash
-# Use production Docker Compose
-docker-compose -f docker-compose.prod.yml up -d
+az login --use-device-code
+az account set --subscription "1815cb03-0ab6-4382-9f78-d03c507c84e4"
 
-# Scale services
-docker-compose -f docker-compose.prod.yml up --scale weather-api=3 -d
+export RESOURCE_GROUP="rg-projet"
+export LOCATION="switzerlandnorth"
+export ACR_NAME="climatemlopsreg$(date +%s)"
+```
 
-# Monitor resources
-docker stats
+### 2. Build & Push
+```bash
+# Créer le registre
+az acr create -g $RESOURCE_GROUP -n $ACR_NAME --sku Basic --admin-enabled true
+
+# Pousser l'image
+az acr login --name $ACR_NAME
+export ACR_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
+docker tag climate-mlops-weather-api:latest $ACR_SERVER/climate-mlops:latest
+docker push $AC_SERVER/climate-mlops:latest
+```
+
+### 3. Déploiement
+```bash
+# Déployer sur Container Apps
+az containerapp create \
+  --name weather-api \
+  --resource-group $RESOURCE_GROUP \
+  --environment climate-mlops-env \
+  --image $ACR_SERVER/climate-mlops:latest \
+  --target-port 8000 \
+  --ingress external \
+  --cpu 1.0 --memory 2.0Gi
+```
+
+### 4. Nettoyage
+```bash
+# Tout supprimer après usage
+az group delete --name $RESOURCE_GROUP --yes --no-wait
 ```
 
 ## 🤝 Contributing
