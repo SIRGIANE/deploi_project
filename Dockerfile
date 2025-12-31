@@ -1,6 +1,5 @@
 # ============================================================================
-# UNIFIED DOCKERFILE - Climate MLOps
-# Une seule image pour TOUT : Airflow, API, Training, MLflow, Jupyter
+# DOCKERFILE - Climate MLOps
 # ============================================================================
 
 FROM apache/airflow:2.7.3-python3.10

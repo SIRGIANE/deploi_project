@@ -1,4 +1,4 @@
-# 🚀 Guide de Déploiement Azure : Commande par Commande
+# Guide de Déploiement Azure : Commande par Commande
 
 Ce guide vous permet de redéployer tout le projet sur Azure. Remplacez les variables si nécessaire.
 

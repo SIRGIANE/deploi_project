@@ -48,7 +48,7 @@ services:
       - ./:/workspace
       - ./mlruns:/workspace/mlruns
     command:
-      - "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////workspace/mlruns/mlflow.db --default-artifact-root /workspace/mlruns/artifacts"
+      - "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /workspace/mlruns --default-artifact-root /workspace/mlruns/artifacts"
     entrypoint: [ "/bin/bash", "-c" ]
     environment:
       - MLFLOW_TRACKING_URI=http://localhost:5000

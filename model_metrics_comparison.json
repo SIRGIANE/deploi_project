@@ -32,7 +32,7 @@
       "test_rmse": 1.3463,
       "test_r2": 0.948,
       "test_mae": 1.0545,
-      "performance_grade": "A (Tr\u00e8s bon)"
+      "performance_grade": "A (Très bon)"
     }
   },
   "deployment_recommendation": true
