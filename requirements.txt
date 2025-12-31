@@ -15,7 +15,7 @@ statsmodels>=0.13.0
 # MLOps and Experiment Tracking
 mlflow>=2.0.0
 optuna>=3.0.0
-dvc>=3.0.0
+# dvc>=3.0.0  # Removed: Not used in this project (Airflow + MLflow handle pipelines and tracking)
 # dvc-s3>=2.0.0
 
 # API Framework
